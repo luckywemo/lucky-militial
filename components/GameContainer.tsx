@@ -1,8 +1,8 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Phaser from 'phaser';
 import { createGame } from '../game/main';
-import { GameMode, CharacterClass, MissionConfig } from '../App';
+import { GameMode, CharacterClass, MissionConfig, MPConfig } from '../App';
+import { WEAPONS_CONFIG } from '../game/scenes/MainScene';
 
 interface Props {
   playerName: string;
@@ -12,32 +12,33 @@ interface Props {
   isHost: boolean;
   gameMode: GameMode;
   mission?: MissionConfig;
+  mpConfig?: MPConfig;
+  squad: {name: string, team: 'alpha' | 'bravo'}[];
+  audioEnabled: boolean;
+  difficultyModifier: number;
   onExit: () => void;
   onMissionComplete: () => void;
   onNextLevel: () => void;
 }
 
-const WEAPONS = [
-  { key: 'pistol', icon: '🔫', name: 'P-20' },
-  { key: 'smg', icon: '⚔️', name: 'R-99' },
-  { key: 'shotgun', icon: '🔥', name: 'B-10' },
-  { key: 'launcher', icon: '🚀', name: 'M-55' },
-  { key: 'railgun', icon: '⚡', name: 'VOLT' },
-  { key: 'plasma', icon: '🔮', name: 'X-1' },
-  { key: 'stinger', icon: '🎯', name: 'M-90' },
-  { key: 'neutron', icon: '💠', name: 'X-ION' }
-];
+const WEAPON_LIST = Object.values(WEAPONS_CONFIG);
 
-const HUDBar: React.FC<{ value: number, max: number, color: string, label: string }> = ({ value, max, color, label }) => {
+const HUDBar: React.FC<{ value: number, max: number, color: string, label: string, glowColor: string }> = ({ value, max, color, label, glowColor }) => {
   const percent = Math.max(0, Math.min(1, value / max));
   return (
-    <div className="space-y-0.5 w-full">
-      <div className="flex justify-between text-[7px] font-black uppercase tracking-widest text-white/40">
+    <div className="space-y-1 w-full">
+      <div className="flex justify-between text-[6px] lg:text-[8px] font-black uppercase tracking-[0.2em] lg:tracking-[0.4em] text-white/50 px-1">
         <span>{label}</span>
-        <span>{Math.round(percent * 100)}</span>
+        <span className="opacity-80">{Math.round(percent * 100)}%</span>
       </div>
-      <div className="h-2 bg-black/40 border border-white/10 p-[0.5px] relative">
-         <div className={`h-full transition-all duration-300 ${color}`} style={{ width: `${percent * 100}%`, boxShadow: `0 0 10px ${color.includes('orange') ? '#f97316' : '#22d3ee'}33` }}></div>
+      <div className="h-2 lg:h-3 bg-black/90 border border-white/10 p-[1px] relative rounded-sm overflow-hidden shadow-inner">
+         <div 
+            className={`h-full transition-all duration-300 ${color} rounded-sm`} 
+            style={{ 
+                width: `${percent * 100}%`,
+                boxShadow: percent > 0 ? `0 0 10px ${glowColor}` : 'none'
+            }} 
+         />
       </div>
     </div>
   );
@@ -52,7 +53,7 @@ const FloatingStick: React.FC<{
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const pointerId = useRef<number | null>(null);
-  const radius = 50;
+  const radius = window.innerWidth < 640 ? 48 : 64;
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (pointerId.current !== null) return;
@@ -95,13 +96,11 @@ const FloatingStick: React.FC<{
   }, [active, handlePointerMove, handlePointerUp]);
 
   return (
-    <div onPointerDown={handlePointerDown} className={`absolute top-0 bottom-0 w-1/2 touch-none pointer-events-auto flex items-center justify-center z-[1000] ${side === 'left' ? 'left-0' : 'right-0'}`}>
+    <div onPointerDown={handlePointerDown} className={`absolute top-0 bottom-0 w-1/2 touch-none pointer-events-auto z-[1000] ${side === 'left' ? 'left-0' : 'right-0'}`}>
       {active && (
-        <div className="fixed pointer-events-none z-[1001] animate-in zoom-in-75 duration-200" style={{ left: origin.x - 60, top: origin.y - 60 }}>
-          <div className="relative w-[120px] h-[120px] rounded-full border border-orange-500/20 bg-black/40 backdrop-blur-sm flex items-center justify-center">
-            <div className="w-10 h-10 bg-white/5 border border-white/20 rounded-full flex items-center justify-center shadow-2xl" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }}>
-               <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-            </div>
+        <div className="fixed pointer-events-none z-[1001]" style={{ left: origin.x - (radius + 6), top: origin.y - (radius + 6) }}>
+          <div className="rounded-full border-2 border-white/20 bg-black/60 backdrop-blur-md flex items-center justify-center shadow-2xl" style={{ width: (radius * 2 + 12), height: (radius * 2 + 12) }}>
+            <div className="bg-white/30 rounded-full border border-white/20 shadow-lg" style={{ width: radius * 0.8, height: radius * 0.8, transform: `translate(${knob.x}px, ${knob.y}px)` }}></div>
           </div>
         </div>
       )}
@@ -109,15 +108,12 @@ const FloatingStick: React.FC<{
   );
 };
 
-const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, roomId, isHost, gameMode, mission, onExit, onMissionComplete, onNextLevel }) => {
+const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, roomId, isHost, gameMode, mission, mpConfig, squad, audioEnabled, difficultyModifier, onExit, onMissionComplete, onNextLevel }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const [stats, setStats] = useState({ 
-    hp: 100, maxHp: 100, shield: 100, ammo: 0, maxAmmo: 0, weaponKey: 'pistol', weaponName: 'SIDEARM', isInfinite: true, abilityCooldown: 0, kills: 0, deaths: 0 
+    hp: 100, maxHp: 100, shield: 100, ammo: 0, maxAmmo: 0, weaponKey: 'pistol', weaponName: 'SIDEARM', isInfinite: true, abilityCooldown: 0, kills: 0, points: 0, teamScores: { alpha: 0, bravo: 0 }, mode: 'MISSION'
   });
-  const [coords, setCoords] = useState({ x: 1000, y: 1000 });
-  const [radar, setRadar] = useState<any>({ enemies: [], pickups: [] });
-  const [isVictory, setIsVictory] = useState(false);
 
   const updateVirtualInput = useCallback((data: any) => {
     const scene = gameRef.current?.scene.getScene('MainScene') as any;
@@ -126,7 +122,12 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
 
   useEffect(() => {
     if (containerRef.current && !gameRef.current) {
-      gameRef.current = createGame(containerRef.current, playerName, avatar, roomId, isHost, gameMode, characterClass, mission);
+      gameRef.current = createGame(containerRef.current, playerName, avatar, roomId, isHost, gameMode, characterClass, mission, mpConfig, squad);
+      const scene = gameRef.current.scene.getScene('MainScene') as any;
+      if (scene) {
+        scene.audioEnabled = audioEnabled;
+        scene.difficultyModifier = difficultyModifier;
+      }
     }
     return () => {
       if (gameRef.current) {
@@ -134,166 +135,106 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
         gameRef.current = null;
       }
     };
-  }, [playerName, characterClass, avatar, roomId, isHost, gameMode, mission]);
+  }, [playerName, characterClass, avatar, roomId, isHost, gameMode, mission, mpConfig]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if ((window as any).gameStats) {
-        const currentStats = (window as any).gameStats;
-        setStats({ ...currentStats });
-        if (mission && currentStats.kills >= mission.targetKills && !isVictory) {
-          setIsVictory(true);
-          onMissionComplete();
-        }
+        setStats({ ...(window as any).gameStats });
       }
-      if ((window as any).radarData) setRadar({ ...(window as any).radarData });
-      const scene = gameRef.current?.scene.getScene('MainScene') as any;
-      if (scene?.player) setCoords({ x: Math.round(scene.player.x), y: Math.round(scene.player.y) });
     }, 100);
     return () => clearInterval(interval);
-  }, [mission, isVictory, onMissionComplete]);
-
-  const isLowHP = stats.hp / stats.maxHp < 0.3;
+  }, []);
 
   return (
-    <div className={`relative w-full h-full bg-black overflow-hidden font-mono text-stone-100 touch-none flex flex-col transition-all duration-500 ${isLowHP ? 'animate-[lowhp-flash_2s_infinite]' : ''}`}>
-      <div ref={containerRef} className="flex-1 relative bg-stone-950" />
+    <div className="relative w-full h-full bg-black overflow-hidden font-mono text-stone-100 touch-none flex flex-col">
+      <div ref={containerRef} className="flex-1 relative" />
       
-      {/* HUD Overlay - Reduced Padding */}
-      <div className="absolute inset-0 pointer-events-none p-4 md:p-6 flex flex-col justify-between z-[2000]">
+      {/* TACTICAL HUD OVERLAY */}
+      <div className="absolute inset-0 pointer-events-none p-4 lg:p-12 flex flex-col justify-between z-[2000]">
         
-        {/* TOP: VISOR VITALS - Miniaturized */}
-        <div className="flex justify-between items-start animate-in slide-in-from-top-6 duration-700">
-          <div className="space-y-3 w-full max-w-[240px]">
-            <div className="tactical-panel visor-curve-left p-4 bg-black/60 border-l-2 border-orange-500 pointer-events-auto backdrop-blur-md">
-               <div className="flex justify-between items-center mb-3">
-                  <div className="text-[10px] font-black uppercase text-orange-500 tracking-[0.3em]">{playerName}</div>
-                  <div className={`text-[7px] font-bold uppercase transition-colors px-1 py-0.5 border border-white/10 ${isLowHP ? 'text-red-500 animate-pulse' : 'text-stone-600'}`}>
-                    {isLowHP ? 'CRITICAL' : 'STABLE'}
-                  </div>
-               </div>
-               <div className="space-y-3">
-                  <HUDBar label="INTEGRITY" value={stats.hp} max={stats.maxHp} color="bg-white" />
-                  <HUDBar label="SHIELD" value={stats.shield} max={100} color="bg-cyan-500" />
-               </div>
+        {/* Top Section - Operator Stats & Team Score */}
+        <div className="flex justify-between items-start animate-in fade-in slide-in-from-top-10 duration-700">
+          <div className="tactical-panel bg-black/70 p-3 lg:p-6 border-l-4 border-orange-500 rounded-r-xl lg:rounded-r-2xl min-w-[180px] lg:min-w-[320px] backdrop-blur-xl shadow-2xl relative overflow-hidden">
+            <div className="flex justify-between items-start mb-2 lg:mb-4">
+              <div>
+                <span className="text-[7px] lg:text-[10px] font-black uppercase text-orange-500/60 tracking-[0.2em] lg:tracking-[0.4em]">{stats.mode}</span>
+                <div className="text-sm lg:text-2xl font-black font-stencil text-white leading-tight mt-0.5">{playerName}</div>
+              </div>
+              <div className="text-right hidden sm:block">
+                <div className="text-[7px] lg:text-[9px] font-black text-white/40 uppercase tracking-widest mb-0.5 lg:mb-1">Tactical_Score</div>
+                <div className="text-sm lg:text-3xl font-stencil text-white drop-shadow-lg">{stats.points.toLocaleString()}</div>
+              </div>
+            </div>
+            
+            <div className="hidden lg:grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-white/5 p-3 rounded-xl border border-white/5 shadow-inner">
+                <div className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-1">Kills</div>
+                <div className="text-2xl font-stencil text-white">{stats.kills}</div>
+              </div>
+              <div className="bg-white/5 p-3 rounded-xl border border-white/5 shadow-inner">
+                <div className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-1">Class</div>
+                <div className="text-[14px] font-black text-orange-500 uppercase tracking-tighter">{characterClass}</div>
+              </div>
             </div>
 
-            {mission && (
-              <div className="tactical-panel visor-curve-left p-3 bg-black/60 border-l-2 border-white/10 pointer-events-auto backdrop-blur-md">
-                <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-stone-500 mb-2">
-                  <span>OBJ: {mission.name}</span>
-                  <span className="text-orange-500">{stats.kills}/{mission.targetKills}</span>
-                </div>
-                <div className="h-1 bg-stone-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-orange-600 transition-all duration-500" style={{ width: `${(stats.kills / mission.targetKills) * 100}%` }}></div>
-                </div>
-              </div>
-            )}
+            <div className="space-y-2 lg:space-y-5">
+              <HUDBar label="HULL" value={stats.hp} max={stats.maxHp} color="bg-orange-500" glowColor="rgba(249,115,22,0.6)" />
+              <HUDBar label="SHIELD" value={stats.shield} max={100} color="bg-cyan-400" glowColor="rgba(34,211,238,0.6)" />
+            </div>
           </div>
 
-          {/* Radar - Shrunk */}
-          <div className="tactical-panel visor-curve-right p-2 bg-black/60 rounded-full border border-stone-800 pointer-events-auto shadow-xl backdrop-blur-md">
-             <div className="w-32 h-32 relative overflow-hidden rounded-full border border-stone-900">
-                <div className="absolute inset-0 animate-[spin_4s_linear_infinite] pointer-events-none opacity-30">
-                  <div className="w-1/2 h-full bg-gradient-to-r from-orange-500/20 to-transparent"></div>
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center opacity-5">
-                   <div className="w-px h-full bg-orange-500"></div>
-                   <div className="h-px w-full bg-orange-500"></div>
-                </div>
-                {radar.enemies?.map((e: any, i: number) => {
-                   const dx = (e.x - coords.x) / 15;
-                   const dy = (e.y - coords.y) / 15;
-                   if (Math.sqrt(dx*dx + dy*dy) > 60) return null;
-                   return (
-                     <div 
-                        key={i} 
-                        className="absolute w-1.5 h-1.5 bg-red-500 shadow-[0_0_5px_red] rounded-full" 
-                        style={{ left: `calc(50% + ${dx}px)`, top: `calc(50% + ${dy}px)`, transform: 'translate(-50%, -50%)' }} 
-                     />
-                   );
-                })}
-             </div>
+          <div className="flex gap-2 lg:gap-6">
+            <div className="tactical-panel bg-black/80 px-4 lg:px-10 py-2 lg:py-5 border-b-2 lg:border-b-4 border-orange-500 rounded-lg lg:rounded-2xl flex flex-col items-center shadow-2xl backdrop-blur-md">
+              <span className="text-[7px] lg:text-[11px] font-black text-orange-500/80 mb-0.5 lg:mb-1 tracking-[0.1em] lg:tracking-[0.3em] uppercase">ALPHA</span>
+              <span className="text-2xl lg:text-5xl font-stencil text-white drop-shadow-lg">{stats.teamScores.alpha}</span>
+            </div>
+            <div className="tactical-panel bg-black/80 px-4 lg:px-10 py-2 lg:py-5 border-b-2 lg:border-b-4 border-cyan-500 rounded-lg lg:rounded-2xl flex flex-col items-center shadow-2xl backdrop-blur-md">
+              <span className="text-[7px] lg:text-[11px] font-black text-cyan-500/80 mb-0.5 lg:mb-1 tracking-[0.1em] lg:tracking-[0.3em] uppercase">BRAVO</span>
+              <span className="text-2xl lg:text-5xl font-stencil text-white drop-shadow-lg">{stats.teamScores.bravo}</span>
+            </div>
           </div>
         </div>
 
-        {/* BOTTOM: COMBAT DECK - Compressed */}
-        <div className="flex justify-between items-end animate-in slide-in-from-bottom-6 duration-700">
-          <div className="flex flex-col gap-4 items-start">
+        {/* Bottom Section - Weapon & Controls */}
+        <div className="flex justify-between items-end animate-in fade-in slide-in-from-bottom-10 duration-700">
+          <div className="flex flex-col gap-3 lg:gap-6 items-start pointer-events-auto">
              <button 
-                onPointerDown={(e) => { e.stopPropagation(); updateVirtualInput({ isAbility: true }); }}
-                onPointerUp={(e) => { e.stopPropagation(); updateVirtualInput({ isAbility: false }); }}
-                className={`w-20 h-20 rounded-none flex flex-col items-center justify-center pointer-events-auto transition-all duration-300 stencil-cutout border ${stats.abilityCooldown > 0 ? 'bg-stone-900 border-stone-800 text-stone-700' : 'bg-orange-600 border-orange-400 text-white shadow-lg active:scale-95'}`}
+               onPointerDown={() => updateVirtualInput({isAbility:true})} 
+               onPointerUp={() => updateVirtualInput({isAbility:false})} 
+               className={`w-14 h-14 lg:w-24 lg:h-24 rounded-2xl lg:rounded-3xl border-2 font-black flex flex-col items-center justify-center transition-all ${stats.abilityCooldown > 0 ? 'bg-stone-900/80 border-stone-800 text-stone-700' : 'bg-orange-600 border-orange-400 text-white active:scale-90 hover:bg-orange-500'}`}
              >
-                <div className="text-[8px] font-black uppercase tracking-widest mb-0.5">BOOST</div>
-                <div className="text-[11px] font-black">{stats.abilityCooldown > 0 ? Math.ceil(stats.abilityCooldown/1000) : 'READY'}</div>
+               <span className="text-[7px] lg:text-[10px] uppercase tracking-widest font-black mb-0.5 lg:mb-1">Boost</span>
+               <span className="text-xs lg:text-2xl font-stencil">{stats.abilityCooldown > 0 ? 'WAIT' : 'READY'}</span>
              </button>
-
-             <div className="bg-black/60 p-2 rounded-xl border border-stone-800 pointer-events-auto flex flex-col gap-1.5 backdrop-blur-md max-h-[220px] overflow-y-auto custom-scrollbar">
-                {WEAPONS.map(w => (
-                   <button 
-                      key={w.key}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('weapon_swap', { detail: { key: w.key } })); }}
-                      className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-all ${stats.weaponKey === w.key ? 'bg-white border-white text-stone-950 scale-105 shadow-md' : 'bg-stone-900 border-stone-800 text-stone-600 hover:text-stone-300'}`}
-                   >
-                      <span className="text-lg">{w.icon}</span>
-                   </button>
+             <div className="flex gap-2 bg-black/40 p-1.5 rounded-xl border border-white/5 backdrop-blur-sm shadow-xl overflow-x-auto max-w-[40vw] sm:max-w-none">
+                {WEAPON_LIST.map(w => (
+                  <button 
+                    key={w.key} 
+                    onClick={() => window.dispatchEvent(new CustomEvent('weapon_swap', {detail: {key: w.key}}))} 
+                    className={`w-10 h-10 lg:w-14 lg:h-14 rounded-lg lg:rounded-xl border-2 flex-shrink-0 flex items-center justify-center text-lg lg:text-2xl transition-all ${stats.weaponKey === w.key ? 'bg-white text-black border-white shadow-[0_0_10px_white]' : 'bg-black/60 border-stone-800 text-stone-600 hover:text-stone-300'}`}
+                  >
+                    {w.icon}
+                  </button>
                 ))}
              </div>
           </div>
 
-          <div className="flex flex-col items-end gap-4">
-             <div className="tactical-panel visor-curve-right p-5 bg-black/60 border-r-2 border-white pointer-events-auto text-right w-56 shadow-xl backdrop-blur-md group">
-                <div className="text-[8px] font-black uppercase text-stone-500 mb-1 tracking-[0.3em]">{stats.weaponName}</div>
-                <div className="text-4xl font-black italic tracking-tighter mb-2 font-stencil">
-                   {stats.isInfinite ? '∞' : `${stats.ammo}/${stats.maxAmmo}`}
-                </div>
-                <div className="h-1 w-full bg-stone-900/50 rounded-none overflow-hidden">
-                   <div className="h-full bg-white" style={{ width: `${(stats.ammo / (stats.maxAmmo || 1)) * 100}%` }}></div>
-                </div>
-             </div>
-
-             <button 
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); onExit(); }}
-                className="bg-red-600/80 hover:bg-red-600 text-white px-8 py-4 text-[10px] font-black uppercase tracking-[0.4em] pointer-events-auto stencil-cutout transition-all"
-              >
-                ABORT_OP
-             </button>
+          <div className="flex flex-col items-end gap-3 lg:gap-8">
+            <div className="tactical-panel bg-black/80 p-3 lg:p-8 rounded-l-2xl lg:rounded-l-3xl border-r-4 lg:border-r-[12px] border-white text-right min-w-[120px] lg:min-w-[220px] shadow-2xl backdrop-blur-xl">
+              <span className="text-[7px] lg:text-[11px] font-black text-stone-500 mb-1 lg:mb-2 block uppercase tracking-[0.2em] lg:tracking-[0.4em] opacity-80">{stats.weaponName}</span>
+              <div className="flex items-baseline justify-end gap-1.5 lg:gap-3">
+                <span className="text-2xl lg:text-6xl font-stencil text-white tracking-tighter drop-shadow-lg">{stats.isInfinite ? 'INF' : stats.ammo}</span>
+                {!stats.isInfinite && <span className="text-[8px] lg:text-sm font-black text-stone-600 tracking-widest uppercase">/ {stats.maxAmmo}</span>}
+              </div>
+            </div>
+            <button onClick={onExit} className="bg-red-600 hover:bg-red-500 text-white px-6 lg:px-12 py-3 lg:py-5 text-[8px] lg:text-[12px] font-black tracking-[0.3em] lg:tracking-[0.6em] pointer-events-auto transition-all uppercase rounded-md lg:rounded-lg border-b-2 lg:border-b-[6px] border-red-900 active:translate-y-1 active:border-b-0 shadow-2xl">Abort</button>
           </div>
         </div>
       </div>
 
-      {isVictory && (
-        <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-500">
-           <div className="text-center space-y-10 w-full max-w-xl px-8">
-              <div className="space-y-4">
-                <h2 className="text-6xl font-black italic tracking-tighter font-stencil text-orange-500 uppercase">Sector_Secure</h2>
-                <p className="text-stone-500 font-bold uppercase tracking-[0.4em] text-[10px]">Extraction_Signal_Locked</p>
-              </div>
-              
-              <div className="flex gap-4">
-                <button onClick={onExit} className="flex-1 py-6 bg-stone-800 text-white font-black uppercase tracking-widest stencil-cutout">Base</button>
-                <button onClick={onNextLevel} className="flex-1 py-6 bg-white text-stone-950 font-black uppercase tracking-widest stencil-cutout">Next</button>
-              </div>
-           </div>
-        </div>
-      )}
-
       <FloatingStick side="left" onMove={(x, y) => updateVirtualInput({ moveX: x, moveY: y })} onEnd={() => updateVirtualInput({ moveX: 0, moveY: 0 })} />
       <FloatingStick side="right" onMove={(x, y) => updateVirtualInput({ aimAngle: Math.atan2(y, x), isFiring: true })} onEnd={() => updateVirtualInput({ isFiring: false })} />
-
-      <style>{`
-        .visor-curve-left { border-radius: 0 20px 20px 0; }
-        .visor-curve-right { border-radius: 20px 0 0 20px; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
-        @keyframes lowhp-flash {
-          0%, 100% { background-color: black; }
-          50% { background-color: #1a0404; }
-        }
-      `}</style>
     </div>
   );
 };

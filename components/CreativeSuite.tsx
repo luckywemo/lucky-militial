@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -122,149 +121,155 @@ const CreativeSuite: React.FC<Props> = ({ onBack, setAvatar }) => {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-stone-900/60 p-10 font-mono">
-      <div className="max-w-7xl mx-auto space-y-12">
-        <div className="flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-6 text-stone-400 hover:text-white font-black uppercase text-[11px] tracking-[0.4em] transition-all group">
-            <div className="w-14 h-14 border-2 border-stone-700 flex items-center justify-center group-hover:bg-stone-800 transition-colors stencil-cutout bg-stone-900 shadow-xl">
-              <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
-            </div>
-            TERMINATE_SYNTH
-          </button>
-          <div className="text-right">
-            <h2 className="text-7xl font-black italic text-stone-100 tracking-tighter font-stencil leading-none uppercase drop-shadow-lg">Bio_Forge_Terminal</h2>
-            <p className="text-[11px] font-bold text-orange-500 uppercase tracking-[0.5em] mt-4">Industrial_grade Synthesis Engine v9.1</p>
+    <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 lg:p-10 animate-in fade-in duration-500 font-mono overflow-y-auto overflow-x-hidden">
+      <div className="w-full max-w-[1300px] grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8">
+        
+        {/* LEFT CONTROL PANEL */}
+        <div className="lg:col-span-4 flex flex-col gap-4 lg:gap-6">
+          <div className="tactical-panel p-4 sm:p-8 bg-stone-900/90 border border-stone-800 rounded-xl lg:rounded-2xl relative overflow-hidden group">
+             <button onClick={onBack} className="flex items-center gap-2 text-stone-500 hover:text-white transition-all text-[9px] lg:text-[11px] font-black tracking-widest uppercase mb-3 lg:mb-4 group/btn">
+                <span className="group-hover/btn:-translate-x-1 transition-transform">←</span> <span className="hidden sm:inline">BACK_TO_COMMAND</span><span className="sm:hidden">EXIT</span>
+             </button>
+             <h1 className="font-stencil text-2xl lg:text-5xl font-black text-white leading-none uppercase mb-1 drop-shadow-[0_2px_15px_rgba(249,115,22,0.3)]">
+               BIO<span className="text-orange-500">FORGE</span>
+             </h1>
+             <div className="text-[8px] lg:text-[10px] font-black text-stone-600 tracking-[0.3em] lg:tracking-[0.5em] uppercase">Synthesis_Terminal</div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          {/* CONTROL SECTION */}
-          <div className="lg:col-span-4 space-y-10">
-            <div className="tactical-panel p-2 flex gap-2 shadow-2xl bg-stone-800 border-stone-700">
-              {(['generate', 'edit', 'video'] as const).map(t => (
-                <button 
-                  key={t}
-                  onClick={() => { setTab(t); setResult(null); }}
-                  className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.3em] transition-all stencil-cutout ${tab === t ? 'bg-orange-600 text-white shadow-lg' : 'text-stone-400 hover:bg-stone-700 hover:text-stone-200'}`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
+          <div className="tactical-panel flex-1 p-4 lg:p-8 bg-stone-900/60 rounded-xl lg:rounded-3xl border border-stone-800 flex flex-col gap-4 lg:gap-6 shadow-2xl relative overflow-hidden">
+             <div className="flex gap-1.5 bg-black/60 p-1 rounded-lg border border-stone-800 shadow-inner">
+               {(['generate', 'edit', 'video'] as const).map(t => (
+                 <button 
+                   key={t}
+                   onClick={() => { setTab(t); setResult(null); }}
+                   className={`flex-1 py-2 lg:py-4 text-[8px] lg:text-[10px] font-black uppercase tracking-[0.2em] lg:tracking-[0.3em] transition-all rounded-md ${tab === t ? 'bg-orange-600 text-white shadow-lg' : 'text-stone-600 hover:text-stone-300'}`}
+                 >
+                   {t}
+                 </button>
+               ))}
+             </div>
 
-            <div className="tactical-panel p-12 space-y-10 relative overflow-hidden bg-stone-800/90 border-stone-700 shadow-2xl">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-orange-500/30 data-stream opacity-40"></div>
-              
-              {(tab === 'edit' || tab === 'video') && (
-                <div className="space-y-4">
-                  <label className="block text-[11px] font-black text-stone-400 uppercase tracking-widest mb-3">Input_Asset_Vector</label>
-                  {!sourceImg ? (
-                    <div className="relative aspect-video bg-stone-950 border-4 border-dashed border-stone-700 flex flex-col items-center justify-center hover:border-orange-500 transition-all cursor-pointer group shadow-inner">
-                      <input type="file" accept="image/*" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                      <span className="text-6xl mb-6 grayscale group-hover:grayscale-0 transition-all opacity-40 group-hover:opacity-100">📸</span>
-                      <span className="text-[10px] text-stone-500 font-black uppercase tracking-[0.4em]">Mount_Hardware</span>
-                    </div>
-                  ) : (
-                    <div className="relative group border-2 border-stone-600 shadow-2xl">
-                      <img src={sourceImg} className="w-full aspect-video object-cover brightness-110 contrast-110" alt="Hardware Asset" />
-                      <button onClick={() => setSourceImg(null)} className="absolute top-4 right-4 bg-red-600 hover:bg-red-500 p-4 transition-all shadow-xl active:scale-90">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M6 18L18 6M6 6l12 12" /></svg>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+             <div className="flex-1 flex flex-col gap-4 lg:gap-8 py-2">
+                {(tab === 'edit' || tab === 'video') && (
+                  <div className="space-y-2">
+                    <label className="text-[8px] lg:text-[10px] font-black text-stone-500 uppercase tracking-[0.3em] px-1 block">Hardware_Asset</label>
+                    {!sourceImg ? (
+                      <div className="relative aspect-video bg-black/40 border-2 border-dashed border-stone-800 rounded-xl flex flex-col items-center justify-center hover:border-orange-500 transition-all cursor-pointer group shadow-inner overflow-hidden">
+                        <input type="file" accept="image/*" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                        <span className="text-2xl lg:text-4xl mb-2 opacity-30 group-hover:opacity-100 transition-all">📸</span>
+                        <span className="text-[7px] lg:text-[9px] text-stone-700 font-black uppercase tracking-[0.3em] lg:tracking-[0.5em]">Mount_Vector</span>
+                      </div>
+                    ) : (
+                      <div className="relative group rounded-xl overflow-hidden border-2 border-stone-800 shadow-2xl">
+                        <img src={sourceImg} className="w-full aspect-video object-cover brightness-90 group-hover:brightness-110 transition-all" alt="Asset" />
+                        <button onClick={() => setSourceImg(null)} className="absolute top-2 right-2 bg-red-600/80 hover:bg-red-600 p-1.5 rounded-md transition-all z-20">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              <div className="space-y-4">
-                <label className="block text-[11px] font-black text-stone-400 uppercase tracking-widest mb-3">Neural_Command_Strings</label>
-                <div className="relative">
+                <div className="space-y-2">
+                  <label className="text-[8px] lg:text-[10px] font-black text-stone-500 uppercase tracking-[0.3em] px-1 block">Neural_Command</label>
                   <textarea 
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    className="w-full bg-stone-100 border-4 border-stone-300 p-8 text-[13px] text-stone-900 h-44 focus:border-orange-500 outline-none transition-all resize-none font-bold placeholder:text-stone-400 uppercase tracking-wider shadow-inner"
-                    placeholder={tab === 'generate' ? "DESCRIBE OPERATOR PARAMETERS..." : "SPECIFY MODIFICATIONS..."}
+                    className="w-full bg-black/60 border border-stone-800 p-4 text-[10px] lg:text-[12px] text-stone-100 h-24 lg:h-40 focus:border-orange-500 outline-none transition-all resize-none font-bold placeholder:text-stone-800 uppercase tracking-widest shadow-inner rounded-xl"
+                    placeholder="DESCRIBE PARAMETERS..."
                   />
-                  <div className="absolute bottom-4 right-6 text-[9px] font-black text-stone-300 tracking-tighter">UPLINK_BUFFER_READY</div>
                 </div>
-              </div>
 
-              {tab === 'generate' && (
-                <div className="grid grid-cols-3 gap-3">
-                  {(['1K', '2K', '4K'] as const).map(s => (
-                    <button key={s} onClick={() => setImgSize(s)} className={`py-4 text-[11px] font-black transition-all border-2 ${imgSize === s ? 'bg-white border-white text-stone-950 shadow-lg' : 'bg-stone-900 border-stone-700 text-stone-500 hover:border-stone-500'}`}>{s}</button>
-                  ))}
+                <div className="grid grid-cols-1 gap-3">
+                  {tab === 'generate' && (
+                    <div className="flex gap-1.5 bg-stone-950 p-1.5 rounded-lg border border-stone-800">
+                      {(['1K', '2K', '4K'] as const).map(s => (
+                        <button key={s} onClick={() => setImgSize(s)} className={`flex-1 py-2 text-[8px] lg:text-[10px] font-black transition-all rounded-md border ${imgSize === s ? 'bg-white border-white text-stone-950 shadow-lg' : 'bg-transparent border-transparent text-stone-600 hover:text-stone-400'}`}>{s}</button>
+                      ))}
+                    </div>
+                  )}
+
+                  {tab === 'video' && (
+                    <div className="flex gap-1.5 bg-stone-950 p-1.5 rounded-lg border border-stone-800">
+                      {(['16:9', '9:16'] as const).map(a => (
+                        <button key={a} onClick={() => setAspect(a)} className={`flex-1 py-2 text-[8px] lg:text-[10px] font-black transition-all rounded-md border ${aspect === a ? 'bg-white border-white text-stone-950 shadow-lg' : 'bg-transparent border-transparent text-stone-600 hover:text-stone-400'}`}>{a}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+             </div>
 
-              {tab === 'video' && (
-                <div className="grid grid-cols-2 gap-3">
-                  {(['16:9', '9:16'] as const).map(a => (
-                    <button key={a} onClick={() => setAspect(a)} className={`py-4 text-[11px] font-black transition-all border-2 ${aspect === a ? 'bg-white border-white text-stone-950 shadow-lg' : 'bg-stone-900 border-stone-700 text-stone-500 hover:border-stone-500'}`}>{a}</button>
-                  ))}
-                </div>
-              )}
-
-              <button 
+             <button 
                 onClick={processAI}
                 disabled={loading}
-                className={`w-full py-7 font-black uppercase tracking-[0.6em] transition-all text-[12px] stencil-cutout shadow-2xl active:translate-y-1 ${loading ? 'bg-stone-700 text-stone-500 cursor-not-allowed border-none' : 'bg-orange-600 hover:bg-orange-500 text-white border-b-4 border-orange-800'}`}
+                className={`w-full py-4 lg:py-8 font-black uppercase tracking-[0.3em] lg:tracking-[0.5em] transition-all text-[10px] lg:text-[12px] rounded-2xl lg:rounded-3xl shadow-2xl active:translate-y-1 ${loading ? 'bg-stone-900 text-stone-700 cursor-not-allowed border-stone-800' : 'bg-orange-600 hover:bg-orange-500 text-white border-b-4 lg:border-b-[8px] border-orange-800'}`}
               >
                 {loading ? (
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="w-6 h-6 border-2 border-stone-400 border-t-white rounded-full animate-spin"></div>
-                    <span className="text-[9px] animate-pulse tracking-widest">{status}</span>
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-3 h-3 border-2 border-stone-500 border-t-white rounded-full animate-spin"></div>
+                    <span className="text-[7px] lg:text-[9px] animate-pulse tracking-[0.2em]">{status}</span>
                   </div>
-                ) : `INIT_SYNTHESIS_SEQUENCE`}
+                ) : `INITIATE_SYNTHESIS`}
               </button>
+          </div>
+        </div>
 
-              {loading && thoughts.length > 0 && (
-                <div className="space-y-2 p-6 bg-stone-950/80 border border-stone-700 shadow-inner animate-in fade-in slide-in-from-bottom-4 duration-500">
-                   <p className="text-[9px] font-black text-orange-400 uppercase tracking-[0.4em] mb-3">Neural_Process_Log</p>
-                   {thoughts.map((t, i) => (
-                     <div key={i} className="text-[9px] text-stone-500 uppercase font-bold tracking-widest leading-tight">&gt; {t}</div>
-                   ))}
+        {/* RIGHT VIEWPORT PANEL */}
+        <div className="lg:col-span-8 flex flex-col gap-4 lg:gap-6">
+           <div className="tactical-panel flex-1 bg-stone-950/90 border border-stone-800 rounded-2xl lg:rounded-[3rem] p-3 lg:p-4 flex flex-col shadow-2xl relative overflow-hidden min-h-[360px] lg:min-h-[720px]">
+              {result ? (
+                <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-700">
+                   <div className="flex-1 bg-black rounded-xl lg:rounded-[2.5rem] overflow-hidden shadow-inner border border-white/5 relative group">
+                      <div className="absolute top-4 left-4 lg:top-10 lg:left-10 text-[7px] lg:text-[10px] font-black text-white/30 tracking-[0.4em] lg:tracking-[0.6em] uppercase">VIEWPORT_OUTPUT</div>
+                      {tab === 'video' ? (
+                        <video src={result} controls autoPlay loop className="w-full h-full object-contain" />
+                      ) : (
+                        <img src={result} className="w-full h-full object-contain brightness-110 contrast-110" alt="Output" />
+                      )}
+                   </div>
+                   
+                   <div className="p-4 lg:p-8 flex gap-3 lg:gap-6 mt-2 lg:mt-4">
+                      {tab !== 'video' && (
+                        <button 
+                          onClick={() => { setAvatar(result); onBack(); }}
+                          className="flex-1 bg-white hover:bg-orange-600 text-stone-950 hover:text-white font-black py-4 lg:py-8 rounded-xl lg:rounded-[2rem] text-[10px] lg:text-[14px] uppercase tracking-[0.4em] lg:tracking-[0.8em] transition-all shadow-2xl"
+                        >
+                          DEPLOY_OPERATOR
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => setResult(null)}
+                        className="px-6 lg:px-12 bg-stone-900 text-stone-500 hover:text-white rounded-xl lg:rounded-[2rem] font-black text-[9px] lg:text-[11px] uppercase tracking-[0.2em] lg:tracking-[0.4em] transition-all border border-stone-800"
+                      >
+                        RESET
+                      </button>
+                   </div>
+                </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center space-y-6 lg:space-y-10 group">
+                   <div className="relative">
+                      <div className="w-24 h-24 lg:w-48 lg:h-48 border-4 border-stone-900 rounded-full flex items-center justify-center opacity-40 group-hover:rotate-[360deg] transition-all duration-700">
+                         <div className="text-4xl lg:text-8xl grayscale contrast-50 opacity-50 group-hover:opacity-100 transition-all">⚙️</div>
+                      </div>
+                      <div className="absolute inset-0 border-t-4 border-orange-500/20 rounded-full animate-spin"></div>
+                   </div>
+                   <p className="font-black uppercase tracking-[0.6em] lg:tracking-[1em] text-[10px] lg:text-[14px] text-stone-700">AWAITING_LINK</p>
+                   
+                   {loading && thoughts.length > 0 && (
+                     <div className="max-w-xs lg:max-w-md w-full p-4 lg:p-8 bg-black/60 rounded-xl lg:rounded-3xl border border-stone-900 animate-in slide-in-from-bottom-10 duration-700 shadow-2xl">
+                        <div className="text-[7px] lg:text-[10px] font-black text-orange-500/50 uppercase tracking-[0.4em] lg:tracking-[0.5em] mb-4 lg:mb-6 pb-2 border-b border-stone-900">Analytics</div>
+                        <div className="space-y-2 lg:space-y-3">
+                           {thoughts.map((t, i) => (
+                             <div key={i} className="text-[7px] lg:text-[10px] text-stone-600 uppercase font-black tracking-widest animate-in fade-in slide-in-from-left-4 duration-300">
+                                <span className="text-orange-500 mr-2 lg:mr-3 opacity-30">▶</span> {t}
+                             </div>
+                           ))}
+                        </div>
+                     </div>
+                   )}
                 </div>
               )}
-
-              {error && <div className="p-5 bg-red-600/20 border-2 border-red-600 text-red-500 text-[10px] text-center font-black uppercase tracking-widest shadow-lg">{error}</div>}
-            </div>
-          </div>
-
-          {/* VIEWPORT SECTION */}
-          <div className="lg:col-span-8 flex flex-col items-center justify-start pt-10 relative">
-            {result ? (
-              <div className="w-full max-w-4xl space-y-12 animate-in zoom-in-[0.98] fade-in duration-700">
-                <div className="tactical-panel p-6 shadow-[0_60px_100px_rgba(0,0,0,0.6)] relative overflow-hidden bg-stone-800 border-stone-700">
-                  <div className="absolute top-5 right-6 text-[11px] font-black text-stone-500 tracking-[0.3em]">SYNTH_BLOCK_01_FINAL</div>
-                  <div className="bg-stone-950 p-3 shadow-inner">
-                    {tab === 'video' ? (
-                      <video src={result} controls autoPlay loop className="w-full aspect-video object-contain" />
-                    ) : (
-                      <img src={result} className="w-full aspect-square object-contain brightness-110 contrast-110 shadow-2xl" alt="Result" />
-                    )}
-                  </div>
-                </div>
-                {tab !== 'video' && (
-                  <button 
-                    onClick={() => { setAvatar(result); onBack(); }}
-                    className="w-full bg-white hover:bg-orange-500 text-stone-950 hover:text-white font-black py-7 text-[13px] uppercase tracking-[0.8em] transition-all stencil-cutout transform hover:-translate-y-2 shadow-[0_40px_60px_rgba(0,0,0,0.4)]"
-                  >
-                    DEPLOY_TO_COMMAND_UNIT
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="w-full h-[700px] tactical-panel border-4 border-dashed border-stone-700 bg-stone-900/40 flex flex-col items-center justify-center text-stone-600 transition-all">
-                <div className="text-[120px] mb-12 opacity-20 grayscale filter contrast-50">⚙️</div>
-                <p className="font-black uppercase tracking-[1.2em] text-[12px] text-stone-500">Awaiting_Terminal_Sequence</p>
-                <div className="mt-10 flex gap-4">
-                   <div className="w-3 h-3 bg-stone-700 animate-pulse delay-0"></div>
-                   <div className="w-3 h-3 bg-stone-700 animate-pulse delay-150"></div>
-                   <div className="w-3 h-3 bg-stone-700 animate-pulse delay-300"></div>
-                </div>
-              </div>
-            )}
-          </div>
+           </div>
         </div>
       </div>
     </div>

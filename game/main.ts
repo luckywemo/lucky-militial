@@ -1,10 +1,9 @@
 
 import Phaser from 'phaser';
 import { MainScene } from './scenes/MainScene';
-import { GameMode, CharacterClass, MissionConfig } from '../App';
+import { GameMode, CharacterClass, MissionConfig, MPConfig } from '../App';
 
-// Added MissionConfig import and mission optional parameter to createGame to match usage in GameContainer.tsx
-export const createGame = (parent: HTMLElement, playerName: string, avatar: string | null, roomId: string | null, isHost: boolean, gameMode: GameMode, characterClass: CharacterClass, mission?: MissionConfig) => {
+export const createGame = (parent: HTMLElement, playerName: string, avatar: string | null, roomId: string | null, isHost: boolean, gameMode: GameMode, characterClass: CharacterClass, mission?: MissionConfig, mpConfig?: MPConfig, squad?: {name: string, team: 'alpha' | 'bravo'}[]) => {
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     parent: parent,
@@ -25,13 +24,9 @@ export const createGame = (parent: HTMLElement, playerName: string, avatar: stri
     backgroundColor: '#0c0a09',
     transparent: false,
     antialias: true,
-    render: {
-      powerPreference: 'high-performance'
-    }
   };
 
   const game = new Phaser.Game(config);
-  // Pass mission to MainScene init data
-  game.scene.start('MainScene', { playerName, avatar, roomId, isHost, gameMode, characterClass, mission });
+  game.scene.start('MainScene', { playerName, avatar, roomId, isHost, gameMode, characterClass, mission, mpConfig, squad });
   return game;
 };

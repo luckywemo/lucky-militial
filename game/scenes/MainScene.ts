@@ -1,8 +1,9 @@
 
 import Phaser from 'phaser';
-import { GameMode, CharacterClass, MissionConfig } from '../../App';
+import Peer, { DataConnection } from 'peerjs';
+import { GameMode, CharacterClass, MissionConfig, MPConfig } from '../../App';
 
-interface WeaponConfig {
+export interface WeaponConfig {
   name: string;
   fireRate: number;
   damage: number;
@@ -21,19 +22,27 @@ interface WeaponConfig {
   speed?: number;
 }
 
-const WEAPONS: Record<string, WeaponConfig> = {
-  pistol: { name: 'P-20 SIDEARM', fireRate: 250, damage: 15, recoil: 150, bullets: 1, spread: 0, projectileScale: 1, projectileTint: 0xffffff, maxAmmo: 999, isInfinite: true, key: 'pistol', icon: '🔫', type: 'kinetic', category: 'pistol', speed: 1800 },
-  smg: { name: 'R-99 RAZOR', fireRate: 80, damage: 8, recoil: 60, bullets: 1, spread: 0.1, projectileScale: 0.7, projectileTint: 0xfde047, maxAmmo: 60, key: 'smg', icon: '⚔️', type: 'kinetic', category: 'rifle', speed: 1800 },
-  shotgun: { name: 'B-10 BREACHER', fireRate: 850, damage: 18, recoil: 1800, bullets: 10, spread: 0.8, projectileScale: 1.1, projectileTint: 0xef4444, maxAmmo: 10, key: 'shotgun', icon: '🔥', type: 'kinetic', category: 'heavy', speed: 1600 },
-  launcher: { name: 'M-55 HELLFIRE', fireRate: 1200, damage: 75, recoil: 900, bullets: 1, spread: 0, projectileScale: 2.2, projectileTint: 0xf97316, maxAmmo: 5, key: 'launcher', icon: '🚀', type: 'explosive', category: 'heavy', speed: 1200 },
-  railgun: { name: 'VOLT RAILGUN', fireRate: 1500, damage: 120, recoil: 1200, bullets: 1, spread: 0, projectileScale: 3.5, projectileTint: 0x06b6d4, maxAmmo: 4, key: 'railgun', icon: '⚡', type: 'energy', category: 'heavy', speed: 3000 },
-  plasma: { name: 'X-1 REPEATER', fireRate: 180, damage: 25, recoil: 150, bullets: 1, spread: 0.04, projectileScale: 1.5, projectileTint: 0xd946ef, maxAmmo: 25, key: 'plasma', icon: '🔮', type: 'energy', category: 'rifle', speed: 1400 },
-  stinger: { name: 'M-90 STINGER', fireRate: 1500, damage: 60, recoil: 500, bullets: 1, spread: 0, projectileScale: 2.0, projectileTint: 0xff0000, maxAmmo: 8, key: 'stinger', icon: '🎯', type: 'explosive', category: 'heavy', homing: true, speed: 800 },
-  neutron: { name: 'X-ION PULSE', fireRate: 400, damage: 45, recoil: 300, bullets: 1, spread: 0.02, projectileScale: 2.2, projectileTint: 0x00ff00, maxAmmo: 20, key: 'neutron', icon: '💠', type: 'energy', category: 'rifle', speed: 1200 }
+export const WEAPONS_CONFIG: Record<string, WeaponConfig> = {
+  pistol: { name: 'M9 SIDEARM', fireRate: 350, damage: 15, recoil: 150, bullets: 1, spread: 0.02, projectileScale: 0.8, projectileTint: 0xffcc00, maxAmmo: 999, isInfinite: true, key: 'pistol', icon: '🔫', type: 'kinetic', category: 'pistol', speed: 2000 },
+  smg: { name: 'MP5 TACTICAL', fireRate: 100, damage: 10, recoil: 80, bullets: 1, spread: 0.12, projectileScale: 0.6, projectileTint: 0xffaa00, maxAmmo: 45, key: 'smg', icon: '⚔️', type: 'kinetic', category: 'rifle', speed: 2200 },
+  shotgun: { name: '870 BREACHER', fireRate: 900, damage: 20, recoil: 2000, bullets: 8, spread: 0.9, projectileScale: 0.9, projectileTint: 0xff4444, maxAmmo: 8, key: 'shotgun', icon: '🔥', type: 'kinetic', category: 'heavy', speed: 1800 },
+  launcher: { name: 'M32 GL', fireRate: 1500, damage: 80, recoil: 1200, bullets: 1, spread: 0, projectileScale: 2.5, projectileTint: 0xf97316, maxAmmo: 6, key: 'launcher', icon: '🚀', type: 'explosive', category: 'heavy', speed: 1200 },
+  railgun: { name: 'XM-25 RAIL', fireRate: 2000, damage: 150, recoil: 1500, bullets: 1, spread: 0, projectileScale: 4.0, projectileTint: 0x00ffff, maxAmmo: 3, key: 'railgun', icon: '⚡', type: 'energy', category: 'heavy', speed: 4000 },
+  plasma: { name: 'X-ION REPEATER', fireRate: 200, damage: 30, recoil: 200, bullets: 1, spread: 0.05, projectileScale: 1.8, projectileTint: 0xff00ff, maxAmmo: 20, key: 'plasma', icon: '🔮', type: 'energy', category: 'rifle', speed: 1600 }
 };
 
 export class MainScene extends Phaser.Scene {
-  private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
+  public declare add: Phaser.GameObjects.GameObjectFactory;
+  public declare physics: Phaser.Physics.Arcade.ArcadePhysics;
+  public declare cameras: Phaser.Cameras.Scene2D.CameraManager;
+  public declare time: Phaser.Time.Clock;
+  public declare cache: Phaser.Cache.CacheManager;
+  public declare sound: Phaser.Sound.BaseSoundManager;
+  public declare make: Phaser.GameObjects.GameObjectCreator;
+  public declare tweens: Phaser.Tweens.TweenManager;
+  public declare load: Phaser.Loader.LoaderPlugin;
+
+  public player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
   private playerShadow!: Phaser.GameObjects.Sprite;
   private playerLabel!: Phaser.GameObjects.Text;
   private weaponLabel!: Phaser.GameObjects.Text;
@@ -42,32 +51,53 @@ export class MainScene extends Phaser.Scene {
   
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   private bullets!: Phaser.Physics.Arcade.Group;
-  private luckBoxes!: Phaser.Physics.Arcade.Group;
   private aiBots!: Phaser.Physics.Arcade.Group;
-  private environmentDecor!: Phaser.GameObjects.Group;
-  
+  private otherPlayersGroup!: Phaser.Physics.Arcade.Group;
+  private luckBoxes!: Phaser.Physics.Arcade.Group;
+  private weaponBoxes!: Phaser.Physics.Arcade.Group;
+  private weaponItems!: Phaser.Physics.Arcade.Group;
+  private hardpointZone!: Phaser.GameObjects.Arc;
+  private hardpointCenter = { x: 1000, y: 1000 };
+
+  private peer: Peer | null = null;
+  private connections = new Map<string, DataConnection>();
+  private otherPlayers = new Map<string, Phaser.Types.Physics.Arcade.SpriteWithDynamicBody>();
+  private otherLabels = new Map<string, Phaser.GameObjects.Text>();
+
   private playerName = 'Guest';
+  private playerTeam: 'alpha' | 'bravo' = 'alpha';
   private characterClass: CharacterClass = 'STRIKER';
-  private currentWeapon: WeaponConfig = WEAPONS.pistol;
+  private currentWeapon: WeaponConfig = WEAPONS_CONFIG.pistol;
   private health = 100;
   private maxHealth = 100;
   private shield = 100;
-  private ammo = 0;
+  private maxShield = 100;
   private lastFired = 0;
   private kills = 0;
+  private deaths = 0;
+  private points = 0;
+  private ammo = 0;
   private isRespawning = false;
   private abilityCooldown = 0;
   private mission?: MissionConfig;
+  private mpConfig?: MPConfig;
+  private roomId: string | null = null;
+  private isHost = false;
 
+  private teamScores = { alpha: 0, bravo: 0 };
+  private safeZoneTimer = 0;
+  private invulnerabilityTimer = 0;
+  private spawnPoint = { x: 1000, y: 1000 };
+  
+  public audioEnabled = true;
+  public difficultyModifier = 1;
   public virtualInput = { moveX: 0, moveY: 0, aimAngle: null as number | null, isFiring: false, isAbility: false };
   
   private muzzleEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private explosionEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private abilityEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
-  private dustEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
-  private tracerEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
-
-  private globalTick = 0;
+  private bloodEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private bgMusic?: Phaser.Sound.BaseSound;
 
   constructor() {
     super('MainScene');
@@ -77,9 +107,36 @@ export class MainScene extends Phaser.Scene {
     this.playerName = data.playerName;
     this.characterClass = data.characterClass || 'STRIKER';
     this.mission = data.mission;
-    this.maxHealth = this.characterClass === 'TITAN' ? 200 : this.characterClass === 'GHOST' ? 80 : 120;
+    this.mpConfig = data.mpConfig;
+    this.roomId = data.roomId;
+    this.isHost = data.isHost;
+    
+    if (data.squad) {
+      const myMember = data.squad.find((m: any) => m.name === this.playerName);
+      if (myMember) this.playerTeam = myMember.team;
+    }
+
+    this.maxHealth = this.characterClass === 'TITAN' ? 200 : this.characterClass === 'GHOST' ? 100 : 150;
     this.health = this.maxHealth;
+    this.maxShield = 100;
+    this.shield = this.maxShield;
     this.ammo = this.currentWeapon.maxAmmo;
+    this.audioEnabled = data.audioEnabled !== undefined ? data.audioEnabled : true;
+    this.difficultyModifier = data.difficultyModifier || 1;
+    this.teamScores = { alpha: 0, bravo: 0 };
+    this.kills = 0;
+    this.points = 0;
+  }
+
+  preload() {
+    // Audio Assets
+    this.load.audio('sfx_pistol', 'https://labs.phaser.io/assets/audio/SoundEffects/pistol.wav');
+    this.load.audio('sfx_shotgun', 'https://labs.phaser.io/assets/audio/SoundEffects/shotgun.wav');
+    this.load.audio('sfx_hit_flesh', 'https://labs.phaser.io/assets/audio/SoundEffects/squit.wav');
+    this.load.audio('sfx_powerup', 'https://labs.phaser.io/assets/audio/SoundEffects/p-chi.wav');
+    this.load.audio('sfx_boost', 'https://labs.phaser.io/assets/audio/SoundEffects/thrust.wav');
+    this.load.audio('sfx_death_human', 'https://labs.phaser.io/assets/audio/SoundEffects/alien_death.wav');
+    this.load.audio('music_loop', 'https://labs.phaser.io/assets/audio/Tech%20Demo/07-S_S-Ambient.mp3');
   }
 
   create() {
@@ -87,324 +144,656 @@ export class MainScene extends Phaser.Scene {
     this.add.grid(1000, 1000, 2000, 2000, 256, 256, 0x0a0a0a, 1, 0x1a1a1a, 0.5).setDepth(-10);
     this.createArena();
     
-    this.bullets = this.physics.add.group({ defaultKey: 'bullet', maxSize: 250 }) as any;
+    this.bullets = this.physics.add.group({ defaultKey: 'bullet', maxSize: 400 });
     this.aiBots = this.physics.add.group();
+    this.otherPlayersGroup = this.physics.add.group({ immovable: true });
     this.luckBoxes = this.physics.add.group();
-    this.environmentDecor = this.add.group();
+    this.weaponBoxes = this.physics.add.group();
+    this.weaponItems = this.physics.add.group();
 
-    this.createAtmosphere();
+    if (this.mpConfig?.mode === 'HARDPOINT') {
+      this.hardpointZone = this.add.circle(1000, 1000, 128, 0xffffff, 0.1).setDepth(-1).setStrokeStyle(2, 0xffffff);
+    }
 
     const initialTex = `hum_${this.characterClass.toLowerCase()}_${this.currentWeapon.category}`;
-    this.playerShadow = this.add.sprite(1000, 1000, 'shadow').setAlpha(0.3);
-    this.player = this.physics.add.sprite(1000, 1000, initialTex);
-    this.player.setCollideWorldBounds(true).setDrag(4500).setCircle(16, 24, 24).setDepth(10);
+    this.playerShadow = this.add.sprite(this.spawnPoint.x, this.spawnPoint.y, 'shadow').setAlpha(0.3).setScale(1.5);
+    this.player = this.physics.add.sprite(this.spawnPoint.x, this.spawnPoint.y, initialTex);
+    this.player.setCollideWorldBounds(true).setDrag(4500).setCircle(22, 10, 10).setDepth(10);
+    this.player.setData('team', this.playerTeam);
     
     const speedMult = this.characterClass === 'GHOST' ? 1.4 : this.characterClass === 'TITAN' ? 0.8 : 1.1;
     this.player.setMaxVelocity(750 * speedMult);
 
-    this.playerLabel = this.add.text(1000, 960, this.playerName, { fontSize: '11px', fontStyle: '800', color: '#f97316', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
-    this.weaponLabel = this.add.text(1000, 975, this.currentWeapon.name, { fontSize: '9px', fontStyle: 'bold', color: '#ffffff', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
-    this.playerHpBar = this.add.graphics().setDepth(20);
-    this.hitMarker = this.add.image(0, 0, 'hit_marker').setAlpha(0).setScrollFactor(0).setDepth(200).setScale(0.6);
-
+    this.setupUIElements();
     this.setupEmitters();
     this.setupPhysics();
+    this.initAudio();
+
+    if (this.roomId) this.initMultiplayer();
 
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1); 
     this.cameras.main.setBounds(0, 0, 2000, 2000);
 
-    // Reduced initial bot count for better pacing
-    const botCount = 8 + (this.mission?.difficulty || 0) * 3;
-    for(let i=0; i<botCount; i++) this.spawnAIBot(Phaser.Math.Between(200, 1800), Phaser.Math.Between(200, 1800));
-    
-    // Slower respawn interval
-    this.time.addEvent({ delay: 8000, callback: () => {
-      if (this.aiBots.getLength() < botCount) this.spawnAIBot(Phaser.Math.Between(200, 1800), Phaser.Math.Between(200, 1800));
-    }, loop: true });
+    if (this.isHost && this.mpConfig) {
+      for (let i = 0; i < this.mpConfig.alphaBots; i++) this.spawnAIBot('alpha');
+      for (let i = 0; i < this.mpConfig.bravoBots; i++) this.spawnAIBot('bravo');
+    } else if (this.mission) {
+      const botCount = Math.floor(8 * this.difficultyModifier);
+      for(let i=0; i<botCount; i++) this.spawnAIBot('bravo');
+    }
 
+    this.time.addEvent({ delay: 10000, callback: () => this.spawnLuckBox(), loop: true });
+    this.time.addEvent({ delay: 15000, callback: () => this.spawnWeaponBox(), loop: true });
+    
     window.addEventListener('weapon_swap', ((e: CustomEvent) => this.swapWeapon(e.detail.key)) as any);
   }
 
+  private initMultiplayer() {
+    const peerId = this.isHost ? `LM-SCTR-${this.roomId}` : undefined;
+    this.peer = new Peer(peerId);
+    this.peer.on('open', () => {});
+    this.peer.on('connection', (conn) => this.handleConnection(conn));
+  }
+
+  private handleConnection(conn: DataConnection) {
+    conn.on('open', () => this.connections.set(conn.peer, conn));
+    conn.on('data', (data: any) => {
+      if (data.type === 'sync') this.syncRemotePlayer(conn.peer, data);
+      else if (data.type === 'fire') this.spawnBullet(data.x, data.y, data.angle, data.weaponKey, conn.peer, data.team);
+      else if (data.type === 'score_update') this.teamScores = data.scores;
+      else if (data.type === 'hp_move') this.moveHardpoint(data.x, data.y);
+    });
+    conn.on('close', () => {
+      this.otherPlayers.get(conn.peer)?.destroy();
+      this.otherLabels.get(conn.peer)?.destroy();
+      this.otherPlayers.delete(conn.peer);
+      this.otherLabels.delete(conn.peer);
+    });
+  }
+
+  private syncRemotePlayer(id: string, data: any) {
+    let p = this.otherPlayers.get(id);
+    let l = this.otherLabels.get(id);
+    if (!p) {
+      p = this.physics.add.sprite(data.x, data.y, `hum_striker_pistol`);
+      p.setDepth(9).setData('team', data.team).setCircle(22, 10, 10);
+      this.otherPlayers.set(id, p);
+      this.otherPlayersGroup.add(p);
+      const teamColor = data.team === 'alpha' ? '#f97316' : '#22d3ee';
+      l = this.add.text(data.x, data.y - 50, data.name, { fontSize: '12px', color: teamColor, fontStyle: 'bold' }).setOrigin(0.5);
+      this.otherLabels.set(id, l);
+    }
+    p.setPosition(data.x, data.y);
+    p.setRotation(data.angle);
+    p.setTint(data.team === 'alpha' ? 0xf97316 : 0x22d3ee);
+    l?.setPosition(data.x, data.y - 50);
+  }
+
+  private setupUIElements() {
+    const teamColor = this.playerTeam === 'alpha' ? '#f97316' : '#22d3ee';
+    this.playerLabel = this.add.text(0, 0, this.playerName, { fontSize: '13px', fontStyle: '800', color: teamColor, fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
+    this.weaponLabel = this.add.text(0, 0, this.currentWeapon.name, { fontSize: '10px', fontStyle: 'bold', color: '#ffffff', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
+    this.playerHpBar = this.add.graphics().setDepth(20);
+    this.hitMarker = this.add.image(0, 0, 'hit_marker').setAlpha(0).setScrollFactor(0).setDepth(200).setScale(0.8);
+  }
+
+  private initAudio() {
+    if (!this.audioEnabled) return;
+    if (this.cache.audio.exists('music_loop')) {
+      this.bgMusic = this.sound.add('music_loop', { loop: true, volume: 0.1 });
+      this.bgMusic.play();
+    }
+  }
+
+  private playSound(key: string, volume = 0.5, randomizePitch = true) {
+    if (!this.audioEnabled || !this.cache.audio.exists(key)) return;
+    this.sound.play(key, { volume, detune: randomizePitch ? Phaser.Math.Between(-200, 200) : 0 });
+  }
+
   private setupTextures() {
-    const g = this.make.graphics({ x: 0, y: 0 });
-    
+    const g = this.make.graphics({ x: 0, y: 0 }); 
+    g.fillStyle(0x000000, 0.4).fillCircle(32, 32, 28).generateTexture('shadow', 64, 64).clear();
+    g.lineStyle(2, 0xffffff).lineBetween(0, 0, 15, 15).lineBetween(15, 0, 0, 15).generateTexture('hit_marker', 15, 15).clear();
+    g.fillStyle(0xffffff).fillRect(0, 0, 3, 3).generateTexture('spark', 3, 3).clear();
+    g.fillStyle(0xff0000).fillCircle(3, 3, 3).generateTexture('blood_drop', 6, 6).clear();
+
     const drawHumanoid = (key: string, bodyColor: number, visorColor: number, category: string) => {
-      g.clear();
-      g.fillStyle(0x000000, 0.4).fillCircle(40, 40, 22);
-      g.fillStyle(0x0a0a0a).fillRoundedRect(24, 24, 32, 32, 10);
-      g.fillStyle(bodyColor).fillRoundedRect(28, 28, 24, 24, 6);
-      g.fillStyle(0x1a1a1a).fillCircle(40, 40, 12);
-      g.fillStyle(visorColor).fillRect(44, 36, 10, 5); 
-      g.fillStyle(0xffffff, 0.6).fillRect(44, 36, 4, 1);
-      g.fillStyle(bodyColor).fillRect(40, 20, 18, 8);
-      g.fillStyle(bodyColor).fillRect(40, 52, 18, 8);
-      g.fillStyle(0x000000);
-      if (category === 'pistol') {
-        g.fillRect(52, 36, 14, 8);
-      } else if (category === 'rifle') {
-        g.fillRect(50, 32, 30, 12);
-        g.fillStyle(visorColor, 0.4).fillRect(58, 34, 6, 2);
-      } else {
-        g.fillStyle(0x1a1a1a).fillRect(46, 28, 36, 24);
-        g.fillStyle(0xef4444).fillRect(62, 36, 12, 4);
-      }
-      g.generateTexture(key, 80, 80);
+      const cx = 32, cy = 32;
+      g.fillStyle(0x0a0a0a).fillCircle(cx, cy, 24); 
+      g.fillStyle(0xd4a373).fillCircle(cx, cy, 18); 
+      g.fillStyle(bodyColor).fillCircle(cx, cy, 19);
+      g.fillStyle(0x1a1a1a).fillRect(cx - 10, cy - 6, 20, 16); 
+      g.fillStyle(0x1c1917).fillCircle(cx, cy - 4, 14);
+      g.fillStyle(visorColor).fillRect(cx + 6, cy - 8, 8, 8); 
+      g.fillStyle(0xd4a373).fillRect(cx + 2, cy + 6, 12, 6); 
+      g.fillStyle(0x18181b);
+      if (category === 'pistol') g.fillRect(cx + 12, cy + 6, 16, 6);  
+      else if (category === 'rifle') g.fillRect(cx + 4, cy + 6, 32, 8);   
+      else g.fillRect(cx + 2, cy + 2, 40, 14);  
+      g.generateTexture(key, 80, 80).clear();
     };
 
     const classes: CharacterClass[] = ['STRIKER', 'GHOST', 'TITAN'];
-    const colors = { STRIKER: 0x44403c, GHOST: 0x1c1917, TITAN: 0x292524 };
-    const visors = { STRIKER: 0xf97316, GHOST: 0x06b6d4, TITAN: 0xef4444 };
-    const cats = ['pistol', 'rifle', 'heavy'];
+    const colors = { STRIKER: 0x3f6212, GHOST: 0x27272a, TITAN: 0x451a03 }; 
+    const visors = { STRIKER: 0xf97316, GHOST: 0x22d3ee, TITAN: 0xef4444 };
+    classes.forEach(c => ['pistol', 'rifle', 'heavy'].forEach(cat => drawHumanoid(`hum_${c.toLowerCase()}_${cat}`, colors[c], visors[c], cat)));
 
-    classes.forEach(c => {
-      cats.forEach(cat => {
-        drawHumanoid(`hum_${c.toLowerCase()}_${cat}`, colors[c], visors[c], cat);
-      });
-    });
-
-    g.clear().fillStyle(0x1a1a1a).fillRect(0, 0, 128, 128).lineStyle(2, 0x2a2a2a).strokeRect(0, 0, 128, 128).generateTexture('wall_block', 128, 128);
-    g.clear().fillStyle(0x1a1a1a).fillRect(0, 0, 32, 32).lineStyle(2, 0xf97316).strokeRect(2, 2, 28, 28).generateTexture('luck_box', 32, 32);
-    g.clear().fillStyle(0x000000, 0.4).fillCircle(32, 32, 24).generateTexture('shadow', 64, 64);
-    g.clear().fillStyle(0xffffff).fillCircle(3, 3, 3).generateTexture('bullet', 6, 6);
-    g.clear().fillStyle(0xffffff).fillRect(0, 0, 4, 4).generateTexture('spark', 4, 4);
-    g.clear().fillStyle(0xffffff).lineStyle(3, 0xffffff).lineBetween(0, 12, 24, 12).lineBetween(12, 0, 12, 24).generateTexture('hit_marker', 24, 24);
-    g.clear().lineStyle(3, 0xffffff, 0.5).strokeCircle(32, 32, 30).generateTexture('sync_wave', 64, 64);
-  }
-
-  private createAtmosphere() {
-    this.dustEmitter = this.add.particles(0, 0, 'spark', {
-      x: { min: 0, max: 2000 }, y: { min: 0, max: 2000 }, lifespan: 6000,
-      speedX: { min: -15, max: 15 }, speedY: { min: -15, max: 15 },
-      scale: { start: 0.6, end: 0 }, alpha: { start: 0.1, end: 0 }, quantity: 1, frequency: 40, blendMode: 'ADD'
-    });
+    g.fillStyle(0x1c1917).fillRect(0, 0, 64, 64).generateTexture('wall_block', 64, 64).clear();
+    g.fillStyle(0xffffff).fillCircle(3, 3, 3).generateTexture('bullet', 8, 8).clear();
+    g.fillStyle(0x0a0a0a).fillRoundedRect(0, 0, 48, 48, 6).generateTexture('luck_box', 48, 48).clear();
+    g.fillStyle(0x00ffff, 0.8).fillRoundedRect(0, 0, 48, 48, 6).lineStyle(4, 0xffffff).strokeRoundedRect(4, 4, 40, 40, 4).generateTexture('weapon_box', 48, 48).clear();
   }
 
   private setupEmitters() {
-    this.muzzleEmitter = this.add.particles(0, 0, 'spark', { speed: 350, scale: { start: 1.2, end: 0 }, lifespan: 120, emitting: false, blendMode: 'ADD' });
-    this.explosionEmitter = this.add.particles(0, 0, 'spark', { speed: { min: 300, max: 600 }, scale: { start: 2.5, end: 0 }, lifespan: 500, emitting: false, blendMode: 'ADD' });
-    this.abilityEmitter = this.add.particles(0, 0, 'sync_wave', { scale: { start: 0.1, end: 6 }, alpha: { start: 0.8, end: 0 }, lifespan: 600, emitting: false, blendMode: 'ADD' });
-    this.tracerEmitter = this.add.particles(0, 0, 'spark', { scale: { start: 0.8, end: 0 }, alpha: { start: 0.6, end: 0 }, lifespan: 200, emitting: false, blendMode: 'ADD' });
-  }
-
-  update(time: number, delta: number) {
-    this.globalTick++;
-    if (!this.isRespawning) {
-      this.handleVirtualInput();
-      this.handleCombat(time);
-      this.handleProjectiles();
-      if (this.abilityCooldown > 0) this.abilityCooldown -= delta;
-    }
-    this.playerShadow.setPosition(this.player.x + 6, this.player.y + 6);
-    this.updateAIBots(time, delta);
-    if (this.globalTick % 6 === 0) this.updateHUD();
-    
-    this.playerLabel.setPosition(this.player.x, this.player.y - 50);
-    this.weaponLabel.setPosition(this.player.x, this.player.y - 62);
-    this.drawEntityHealthBar(this.playerHpBar, this.player.x, this.player.y, this.health/this.maxHealth);
-    if (this.shield < 100) this.shield += 0.08;
-  }
-
-  private handleProjectiles() {
-    this.bullets.getChildren().forEach((b: any) => {
-      if (b.active && b.getData('isHoming')) {
-        const owner = b.getData('owner');
-        let target = null;
-        let minDist = 400; // Reduced homing acquisition range
-
-        if (owner === 'player') {
-          this.aiBots.getChildren().forEach((bot: any) => {
-            if (bot.active) {
-              const d = Phaser.Math.Distance.Between(b.x, b.y, bot.x, bot.y);
-              if (d < minDist) { minDist = d; target = bot; }
-            }
-          });
-        } else {
-          const d = Phaser.Math.Distance.Between(b.x, b.y, this.player.x, this.player.y);
-          if (d < minDist) target = this.player;
-        }
-
-        if (target) {
-          const targetAngle = Phaser.Math.Angle.Between(b.x, b.y, target.x, target.y);
-          const currentAngle = b.rotation;
-          const newAngle = Phaser.Math.Angle.RotateTo(currentAngle, targetAngle, 0.08); // Slower homing rotation
-          b.setRotation(newAngle);
-          this.physics.velocityFromRotation(newAngle, b.getData('speed'), b.body.velocity);
-          
-          if (this.globalTick % 4 === 0) {
-            this.tracerEmitter.emitParticleAt(b.x, b.y, 1);
-          }
-        }
-      }
-    });
-  }
-
-  private handleVirtualInput() {
-    const speed = 420;
-    const { moveX, moveY } = this.virtualInput;
-    if (moveX === 0 && moveY === 0) {
-      this.player.setVelocity(0, 0);
-    } else {
-      this.player.setVelocity(moveX * speed, moveY * speed);
-      this.player.setRotation(Math.atan2(moveY, moveX));
-    }
-    if (this.virtualInput.aimAngle !== null) this.player.setRotation(this.virtualInput.aimAngle);
-    if (this.virtualInput.isAbility && this.abilityCooldown <= 0) this.triggerAbility();
-  }
-
-  private triggerAbility() {
-    this.abilityCooldown = 7000;
-    this.abilityEmitter.emitParticleAt(this.player.x, this.player.y, 1);
-    this.cameras.main.shake(400, 0.015);
-    const angle = this.player.rotation;
-    this.player.body.velocity.x += Math.cos(angle) * 1800;
-    this.player.body.velocity.y += Math.sin(angle) * 1800;
-  }
-
-  private handleCombat(time: number) {
-    if (this.virtualInput.isFiring && time > this.lastFired) {
-      if (this.ammo <= 0 && !this.currentWeapon.isInfinite) return;
-      const angle = this.virtualInput.aimAngle !== null ? this.virtualInput.aimAngle : this.player.rotation;
-      this.muzzleEmitter.emitParticleAt(this.player.x + Math.cos(angle) * 45, this.player.y + Math.sin(angle) * 45, 8);
-      this.cameras.main.shake(100, 0.003); 
-      
-      for(let i=0; i<this.currentWeapon.bullets; i++) {
-        const spread = (Math.random() - 0.5) * this.currentWeapon.spread;
-        this.spawnBullet(this.player.x, this.player.y, angle + spread, this.currentWeapon.key, 'player');
-      }
-      this.lastFired = time + this.currentWeapon.fireRate;
-      if (!this.currentWeapon.isInfinite) this.ammo--;
-    }
-  }
-
-  private spawnBullet(x: number, y: number, angle: number, weaponKey: string, owner: string) {
-    const config = WEAPONS[weaponKey] || WEAPONS.pistol;
-    const b = this.bullets.get(x, y);
-    if (b) {
-      b.enableBody(true, x, y, true, true);
-      b.setTint(config.projectileTint).setScale(config.projectileScale).setDepth(5);
-      b.setData('owner', owner).setData('damage', config.damage).setData('isHoming', config.homing).setData('speed', config.speed);
-      this.physics.velocityFromRotation(angle, config.speed || 1800, b.body.velocity);
-      b.setRotation(angle);
-      this.tracerEmitter.emitParticleAt(x, y, 1);
-    }
+    this.muzzleEmitter = this.add.particles(0, 0, 'spark', { speed: 400, scale: { start: 1.5, end: 0 }, lifespan: 200, emitting: false, blendMode: 'ADD' });
+    this.explosionEmitter = this.add.particles(0, 0, 'spark', { speed: { min: 200, max: 600 }, scale: { start: 2, end: 0 }, lifespan: 300, emitting: false, blendMode: 'ADD' });
+    this.abilityEmitter = this.add.particles(0, 0, 'bullet', { scale: { start: 0.1, end: 5 }, alpha: { start: 0.6, end: 0 }, lifespan: 600, emitting: false, blendMode: 'ADD' });
+    this.bloodEmitter = this.add.particles(0, 0, 'blood_drop', { speed: { min: 50, max: 300 }, scale: { start: 1, end: 0 }, alpha: { start: 1, end: 0 }, lifespan: 800, emitting: false });
   }
 
   private setupPhysics() {
     this.physics.add.collider(this.player, this.walls);
     this.physics.add.collider(this.aiBots, this.walls);
+    
+    // Player to Bots collision
+    this.physics.add.collider(this.player, this.aiBots);
+    // Player to Other Players collision
+    this.physics.add.collider(this.player, this.otherPlayersGroup);
+    // Bots to Bots collision
+    this.physics.add.collider(this.aiBots, this.aiBots);
+
     this.physics.add.collider(this.bullets, this.walls, (b: any) => { 
-      this.explosionEmitter.emitParticleAt(b.x, b.y, 3);
-      b.disableBody(true, true); 
+      this.explosionEmitter.emitParticleAt(b.x, b.y, 4); 
+      b.setActive(false).setVisible(false).body.stop(); 
     });
+    
+    // Allow bullets to destroy weapon crates and luck boxes
+    this.physics.add.overlap(this.bullets, this.weaponBoxes, (bullet: any, box: any) => {
+      this.activateWeaponBox(box);
+      bullet.setActive(false).setVisible(false).body.stop();
+    });
+
+    this.physics.add.overlap(this.bullets, this.luckBoxes, (bullet: any, box: any) => {
+      this.collectLuckBox(box);
+      bullet.setActive(false).setVisible(false).body.stop();
+    });
+
     this.physics.add.overlap(this.aiBots, this.bullets, (bot: any, b: any) => {
-      if (b.getData('owner') === 'player') { 
-        this.applyDamage(bot, b.getData('damage')); 
-        b.disableBody(true, true); 
-        this.triggerHitMarker(); 
+      if (b.getData('team') !== bot.getData('team')) {
+        this.applyDamage(bot, b.getData('damage'), b.getData('ownerTeam')); 
+        b.setActive(false).setVisible(false).body.stop(); 
       }
     });
-    this.physics.add.overlap(this.player, this.bullets, (p, b: any) => {
-      if (b.getData('owner') !== 'player') { 
+
+    this.physics.add.overlap(this.player, this.bullets, (p: any, b: any) => {
+      if (b.getData('team') !== this.playerTeam) { 
         this.takeDamage(b.getData('damage')); 
-        b.disableBody(true, true); 
+        b.setActive(false).setVisible(false).body.stop(); 
       }
     });
+
+    this.physics.add.overlap(this.player, this.luckBoxes, (p, box: any) => this.collectLuckBox(box));
+    this.physics.add.overlap(this.player, this.weaponBoxes, (p, box: any) => this.activateWeaponBox(box));
+    this.physics.add.overlap(this.player, this.weaponItems, (p, item: any) => this.collectWeaponItem(item));
   }
 
-  private triggerHitMarker() {
-    this.hitMarker.setAlpha(1).setScale(1.4);
-    this.tweens.add({ targets: this.hitMarker, alpha: 0, scale: 0.8, duration: 250 });
+  update(time: number, delta: number) {
+    if (!this.isRespawning) {
+      this.handleInput();
+      this.handleCombat(time);
+      this.resolveUnitOverlaps(); 
+      
+      if (this.abilityCooldown > 0) this.abilityCooldown -= delta;
+      if (this.invulnerabilityTimer > 0) {
+        this.invulnerabilityTimer -= delta;
+        this.player.setAlpha(Math.sin(time * 0.05) > 0 ? 0.3 : 1.0);
+      } else {
+        this.player.setAlpha(1.0);
+      }
+      
+      if (this.roomId && time % 50 < 10) {
+        this.connections.forEach(c => c.send({ type: 'sync', x: this.player.x, y: this.player.y, angle: this.player.rotation, name: this.playerName, team: this.playerTeam }));
+      }
+    }
+
+    if (this.isHost && this.mpConfig?.mode === 'HARDPOINT') {
+      this.updateHardpoint(time);
+    }
+
+    this.playerShadow.setPosition(this.player.x + 6, this.player.y + 6);
+    this.updateAIBots(time);
+    this.updateHUD();
+    
+    this.playerLabel.setPosition(this.player.x, this.player.y - 60);
+    this.weaponLabel.setPosition(this.player.x, this.player.y - 75);
+    this.drawHealthBar();
+
+    if (this.shield < this.maxShield) this.shield += 0.08 * (delta / 16.6);
   }
 
-  private updateHUD() {
-    (window as any).gameStats = { 
-      hp: this.health, maxHp: this.maxHealth, shield: this.shield, ammo: this.ammo, maxAmmo: this.currentWeapon.maxAmmo, weaponKey: this.currentWeapon.key, weaponName: this.currentWeapon.name, isInfinite: this.currentWeapon.isInfinite, abilityCooldown: this.abilityCooldown, kills: this.kills
-    };
-    (window as any).radarData = {
-      enemies: this.aiBots.getChildren().map((b: any) => ({ x: b.x, y: b.y })),
-      pickups: this.luckBoxes.getChildren().map((p: any) => ({ x: p.x, y: p.y }))
-    };
-  }
+  private resolveUnitOverlaps() {
+    // This method can remain as a fallback for soft-pushing, but colliders handle the hard blocking
+    const units = [this.player, ...this.aiBots.getChildren(), ...this.otherPlayers.values()];
+    const minDist = 44; 
 
-  private drawEntityHealthBar(g: Phaser.GameObjects.Graphics, x: number, y: number, h: number) {
-    g.clear().fillStyle(0x0a0a0a, 0.8).fillRect(x - 24, y - 42, 48, 5).fillStyle(0xf97316).fillRect(x - 24, y - 42, 48 * h, 5);
-  }
+    for (let i = 0; i < units.length; i++) {
+      for (let j = i + 1; j < units.length; j++) {
+        const u1 = units[i] as Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
+        const u2 = units[j] as Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 
-  private createArena() {
-    this.walls = this.physics.add.staticGroup();
-    for(let i=0; i<18; i++) {
-      const w = Phaser.Math.Between(160, 600);
-      const h = Phaser.Math.Between(160, 300);
-      const wall = this.add.tileSprite(Phaser.Math.Between(400, 1600), Phaser.Math.Between(400, 1600), w, h, 'wall_block');
-      this.physics.add.existing(wall, true); this.walls.add(wall as any);
+        if (!u1.active || !u2.active || !u1.body || !u2.body) continue;
+
+        const dx = u2.x - u1.x;
+        const dy = u2.y - u1.y;
+        const distanceSq = dx * dx + dy * dy;
+
+        if (distanceSq < minDist * minDist) {
+          const distance = Math.sqrt(distanceSq);
+          const overlap = minDist - distance;
+          
+          const pushX = (dx / (distance || 1)) * (overlap * 0.5);
+          const pushY = (dy / (distance || 1)) * (overlap * 0.5);
+
+          u1.x -= pushX;
+          u1.y -= pushY;
+          u2.x += pushX;
+          u2.y += pushY;
+        }
+      }
     }
   }
 
-  private spawnAIBot(x: number, y: number) {
-    const isElite = (this.mission?.difficulty || 1) >= 3 && Math.random() > 0.7;
-    const cat = isElite ? 'heavy' : 'pistol';
-    const tex = `hum_striker_${cat}`;
-    const bot = this.aiBots.create(x, y, tex) as Phaser.Physics.Arcade.Sprite;
-    bot.setTint(0xff5555).setCollideWorldBounds(true).setDepth(10)
-       .setData('health', isElite ? 130 : 70).setData('lastShot', 0).setData('shadow', this.add.sprite(x, y, 'shadow').setAlpha(0.3))
-       .setData('nextAITick', Phaser.Math.Between(0, 40)).setData('isElite', isElite);
-    bot.body.setCircle(20, 20, 20);
+  private handleInput() {
+    const { moveX, moveY, aimAngle, isAbility } = this.virtualInput;
+    const speed = this.characterClass === 'GHOST' ? 450 : this.characterClass === 'TITAN' ? 300 : 380;
+    
+    if (moveX !== 0 || moveY !== 0) {
+      this.player.setVelocity(moveX * speed, moveY * speed);
+      if (aimAngle === null) this.player.rotation = Math.atan2(moveY, moveX);
+    } else {
+      this.player.setVelocity(0, 0);
+    }
+
+    if (aimAngle !== null) this.player.rotation = aimAngle;
+    if (isAbility && this.abilityCooldown <= 0) this.triggerAbility();
   }
 
-  private updateAIBots(time: number, delta: number) {
+  private triggerAbility() {
+    this.abilityCooldown = 6000;
+    this.abilityEmitter.emitParticleAt(this.player.x, this.player.y, 1);
+    this.cameras.main.shake(200, 0.015);
+    this.playSound('sfx_boost', 0.5);
+    const angle = this.player.rotation;
+    this.physics.velocityFromRotation(angle, 1500, this.player.body.velocity);
+  }
+
+  private handleCombat(time: number) {
+    if (this.virtualInput.isFiring && time > this.lastFired) {
+      if (this.ammo <= 0 && !this.currentWeapon.isInfinite) return;
+      
+      const angle = this.virtualInput.aimAngle !== null ? this.virtualInput.aimAngle : this.player.rotation;
+      this.muzzleEmitter.emitParticleAt(this.player.x + Math.cos(angle) * 45, this.player.y + Math.sin(angle) * 45, 8);
+      
+      for(let i=0; i<this.currentWeapon.bullets; i++) {
+        const spread = (Math.random() - 0.5) * this.currentWeapon.spread;
+        this.spawnBullet(this.player.x, this.player.y, angle + spread, this.currentWeapon.key, 'player', this.playerTeam);
+      }
+
+      if (this.roomId) this.connections.forEach(c => c.send({ type: 'fire', x: this.player.x, y: this.player.y, angle, weaponKey: this.currentWeapon.key, team: this.playerTeam }));
+      this.playSound(this.currentWeapon.category === 'pistol' ? 'sfx_pistol' : 'sfx_shotgun', 0.4);
+      this.lastFired = time + this.currentWeapon.fireRate;
+      if (!this.currentWeapon.isInfinite) this.ammo--;
+      this.cameras.main.shake(100, 0.005);
+    }
+  }
+
+  private spawnBullet(x: number, y: number, angle: number, weaponKey: string, owner: string, team: 'alpha' | 'bravo') {
+    const config = WEAPONS_CONFIG[weaponKey] || WEAPONS_CONFIG.pistol;
+    const b = this.bullets.get(x, y);
+    if (b) {
+      b.setActive(true).setVisible(true).enableBody(true, x, y, true, true);
+      b.setTint(team === 'alpha' ? 0xf97316 : 0x22d3ee).setScale(config.projectileScale * 1.5); 
+      b.setData('owner', owner).setData('team', team).setData('damage', config.damage).setData('ownerTeam', team);
+      this.physics.velocityFromRotation(angle, config.speed || 1500, b.body.velocity);
+      b.rotation = angle;
+    }
+  }
+
+  private spawnAIBot(team: 'alpha' | 'bravo') {
+    const x = Phaser.Math.Between(100, 1900);
+    const y = Phaser.Math.Between(100, 1900);
+    const bot = this.aiBots.create(x, y, 'hum_striker_pistol');
+    
+    const baseHp = 100 * this.difficultyModifier;
+    
+    bot.setTint(team === 'alpha' ? 0xf97316 : 0x22d3ee).setDepth(10)
+       .setData('hp', baseHp)
+       .setData('maxHp', baseHp)
+       .setData('team', team)
+       .setData('lastShot', 0)
+       .setData('weaponKey', 'pistol');
+    bot.body.setCircle(22, 10, 10);
+  }
+
+  private updateAIBots(time: number) {
     this.aiBots.getChildren().forEach((bot: any) => {
-      bot.getData('shadow').setPosition(bot.x + 6, bot.y + 6);
-      if (this.globalTick >= bot.getData('nextAITick')) {
-        const dist = Phaser.Math.Distance.Between(bot.x, bot.y, this.player.x, this.player.y);
-        if (dist < 380) { // Reduced tracking distance
-          const angle = Phaser.Math.Angle.Between(bot.x, bot.y, this.player.x, this.player.y);
-          bot.setRotation(angle);
-          if (time > bot.getData('lastShot') + (bot.getData('isElite') ? 1800 : 3500)) { // Slower bot fire rate
-            const weapon = (bot.getData('isElite') && Math.random() > 0.85) ? 'stinger' : 'pistol';
-            this.spawnBullet(bot.x, bot.y, angle, weapon, 'bot');
-            bot.setData('lastShot', time);
-          }
-          this.physics.velocityFromRotation(angle, 110, bot.body.velocity); // Slower bot movement
+      const team = bot.getData('team');
+      let nearestTarget: any = null;
+      let minDist = 800;
+
+      if (this.playerTeam !== team) {
+        const d = Phaser.Math.Distance.Between(bot.x, bot.y, this.player.x, this.player.y);
+        if (d < minDist) { nearestTarget = this.player; minDist = d; }
+      }
+
+      this.otherPlayers.forEach(p => {
+        if (p.getData('team') !== team) {
+          const d = Phaser.Math.Distance.Between(bot.x, bot.y, p.x, p.y);
+          if (d < minDist) { nearestTarget = p; minDist = d; }
         }
-        bot.setData('nextAITick', this.globalTick + Phaser.Math.Between(25, 50));
+      });
+
+      this.aiBots.getChildren().forEach((otherBot: any) => {
+        if (otherBot !== bot && otherBot.getData('team') !== team) {
+          const d = Phaser.Math.Distance.Between(bot.x, bot.y, otherBot.x, otherBot.y);
+          if (d < minDist) { nearestTarget = otherBot; minDist = d; }
+        }
+      });
+
+      if (nearestTarget) {
+        let desiredWeaponKey = 'pistol';
+        if (minDist < 200) desiredWeaponKey = 'shotgun';
+        else if (minDist < 500) desiredWeaponKey = 'smg';
+        else if (Math.random() > 0.98) desiredWeaponKey = 'plasma'; 
+
+        if (bot.getData('weaponKey') !== desiredWeaponKey) {
+            bot.setData('weaponKey', desiredWeaponKey);
+            const wConfig = WEAPONS_CONFIG[desiredWeaponKey];
+            bot.setTexture(`hum_striker_${wConfig.category}`);
+        }
+
+        const currentWeaponKey = bot.getData('weaponKey');
+        const weaponConfig = WEAPONS_CONFIG[currentWeaponKey];
+
+        const angle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
+        bot.rotation = angle;
+        
+        const botSpeed = 150 * (0.8 + this.difficultyModifier * 0.2);
+        this.physics.velocityFromRotation(angle, botSpeed, bot.body.velocity);
+        
+        const delayFactor = Math.max(0.8, 2.5 / this.difficultyModifier);
+        
+        if (time > bot.getData('lastShot') + weaponConfig.fireRate * delayFactor) {
+          for(let i = 0; i < weaponConfig.bullets; i++) {
+            const spread = (Math.random() - 0.5) * weaponConfig.spread;
+            this.spawnBullet(bot.x, bot.y, angle + spread, currentWeaponKey, 'bot', team);
+          }
+          bot.setData('lastShot', time);
+          this.playSound(weaponConfig.category === 'pistol' ? 'sfx_pistol' : 'sfx_shotgun', 0.1);
+        }
+      } else {
+          bot.body.velocity.scale(0.95);
       }
     });
   }
 
-  private takeDamage(amount: number) {
-    if (this.isRespawning) return;
-    this.health -= amount;
-    this.cameras.main.shake(200, 0.008);
+  private updateHardpoint(time: number) {
+    if (time % 1000 < 20) {
+      let alphaIn = this.physics.overlap(this.hardpointZone, this.player) && this.playerTeam === 'alpha' ? 1 : 0;
+      let bravoIn = this.physics.overlap(this.hardpointZone, this.player) && this.playerTeam === 'bravo' ? 1 : 0;
+      
+      this.otherPlayers.forEach(p => {
+         if (this.physics.overlap(this.hardpointZone, p)) {
+           if (p.getData('team') === 'alpha') alphaIn++;
+           else bravoIn++;
+         }
+      });
+
+      if (alphaIn > bravoIn) this.teamScores.alpha++;
+      else if (bravoIn > alphaIn) this.teamScores.bravo++;
+      
+      this.connections.forEach(c => c.send({ type: 'score_update', scores: this.teamScores }));
+    }
+
+    if (time % 30000 < 20) {
+      this.hardpointCenter.x = Phaser.Math.Between(400, 1600);
+      this.hardpointCenter.y = Phaser.Math.Between(400, 1600);
+      this.moveHardpoint(this.hardpointCenter.x, this.hardpointCenter.y);
+      this.connections.forEach(c => c.send({ type: 'hp_move', x: this.hardpointCenter.x, y: this.hardpointCenter.y }));
+    }
+  }
+
+  private moveHardpoint(x: number, y: number) {
+    if (this.hardpointZone) {
+      this.hardpointZone.setPosition(x, y);
+      this.showFloatingText(x, y, "HARDPOINT_RELOCATED", "#ffffff");
+    }
+  }
+
+  private takeDamage(dmg: number) {
+    if (this.invulnerabilityTimer > 0 || this.safeZoneTimer > 0 || this.isRespawning) return;
+    
+    const difficultyDamageScale = 0.7 + (this.difficultyModifier * 0.3);
+    const scaledDmg = dmg * difficultyDamageScale;
+
+    if (this.shield > 0) {
+      const remainingDmg = Math.max(0, scaledDmg - this.shield);
+      this.shield = Math.max(0, this.shield - scaledDmg);
+      this.health -= remainingDmg;
+    } else {
+      this.health -= scaledDmg;
+    }
+    
+    this.invulnerabilityTimer = 400; 
+    this.playSound('sfx_hit_flesh', 0.8);
+    
     if (this.health <= 0) {
+      this.deaths++;
       this.isRespawning = true;
-      this.explosionEmitter.emitParticleAt(this.player.x, this.player.y, 30);
-      this.player.setVisible(false);
-      this.time.delayedCall(2000, () => {
-        this.health = this.maxHealth;
-        this.player.setPosition(1000, 1000).setVisible(true);
-        this.isRespawning = false;
+      this.playSound('sfx_death_human', 0.9);
+      
+      this.player.body.stop();
+      this.cameras.main.shake(300, 0.01);
+      
+      this.tweens.add({
+        targets: this.player,
+        scale: 0,
+        rotation: 10,
+        alpha: 0,
+        duration: 800,
+        ease: 'Power2',
+        onStart: () => {
+          this.bloodEmitter.emitParticleAt(this.player.x, this.player.y, 25);
+          this.explosionEmitter.emitParticleAt(this.player.x, this.player.y, 15);
+        },
+        onComplete: () => {
+          this.player.setVisible(false);
+          this.time.delayedCall(1000, () => {
+            this.health = this.maxHealth;
+            this.shield = this.maxShield;
+            this.player.setPosition(1000, 1000).setVisible(true).setScale(1).setRotation(0).setAlpha(1);
+            this.isRespawning = false;
+            this.safeZoneTimer = 2000;
+          });
+        }
       });
     }
   }
 
-  private applyDamage(target: any, damage: number) {
-    const hp = target.getData('health') - damage;
-    target.setData('health', hp);
+  private applyDamage(target: any, dmg: number, sourceTeam: 'alpha' | 'bravo') {
+    const hp = target.getData('hp') - dmg;
+    target.setData('hp', hp);
     if (hp <= 0) {
-      this.explosionEmitter.emitParticleAt(target.x, target.y, 12);
-      if (target.getData('shadow')) target.getData('shadow').destroy();
+      this.bloodEmitter.emitParticleAt(target.x, target.y, 20);
+      this.explosionEmitter.emitParticleAt(target.x, target.y, 10);
       target.destroy();
-      this.kills++;
+      
+      if (sourceTeam === this.playerTeam) {
+        this.kills++;
+        this.points += 100;
+      }
+      
+      if (this.isHost) {
+        if (this.mpConfig?.mode === 'TDM' || this.mpConfig?.mode === 'FFA') {
+          this.teamScores[sourceTeam]++;
+          this.connections.forEach(c => c.send({ type: 'score_update', scores: this.teamScores }));
+        }
+        this.time.delayedCall(3000, () => this.spawnAIBot(target.getData('team')));
+      }
     }
   }
 
-  private swapWeapon(key: string) {
-    if (WEAPONS[key]) {
-      this.currentWeapon = WEAPONS[key];
-      this.ammo = this.currentWeapon.maxAmmo;
-      this.weaponLabel.setText(this.currentWeapon.name);
-      const newTex = `hum_${this.characterClass.toLowerCase()}_${this.currentWeapon.category}`;
-      this.player.setTexture(newTex);
+  private createArena() {
+    this.walls = this.physics.add.staticGroup();
+    const map = this.mpConfig?.map || 'URBAN_RUINS';
+    
+    for(let i=0; i<32; i++) {
+      this.walls.create(i * 64, 0, 'wall_block');
+      this.walls.create(i * 64, 2000, 'wall_block');
+      this.walls.create(0, i * 64, 'wall_block');
+      this.walls.create(2000, i * 64, 'wall_block');
+    }
+
+    if (map === 'URBAN_RUINS') {
+      for(let i=0; i<15; i++) {
+        const x = Phaser.Math.Between(400, 1600);
+        const y = Phaser.Math.Between(400, 1600);
+        this.walls.create(x, y, 'wall_block').setScale(1.5).refreshBody();
+      }
+    } else if (map === 'THE_PIT') {
+      for(let i=0; i<8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        this.walls.create(1000 + Math.cos(angle) * 300, 1000 + Math.sin(angle) * 300, 'wall_block');
+      }
+    } else {
+      for(let i=0; i<10; i++) {
+        this.walls.create(500, i * 128, 'wall_block');
+        this.walls.create(1500, 2000 - i * 128, 'wall_block');
+      }
     }
   }
+
+  private spawnLuckBox() {
+    const x = Phaser.Math.Between(300, 1700);
+    const y = Phaser.Math.Between(300, 1700);
+    const box = this.luckBoxes.create(x, y, 'luck_box');
+    box.setDepth(5);
+  }
+
+  private spawnWeaponBox() {
+    const x = Phaser.Math.Between(300, 1700);
+    const y = Phaser.Math.Between(300, 1700);
+    const box = this.weaponBoxes.create(x, y, 'weapon_box');
+    box.setDepth(5);
+    
+    this.tweens.add({
+      targets: box,
+      scale: 1.1,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+  }
+
+  private collectLuckBox(box: any) {
+    this.explosionEmitter.emitParticleAt(box.x, box.y, 8);
+    this.ammo = this.currentWeapon.maxAmmo;
+    this.health = Math.min(this.health + 50, this.maxHealth);
+    this.points += 25;
+    this.playSound('sfx_powerup', 0.6);
+    this.showFloatingText(box.x, box.y, "RESOURCES_RESTORED +25", "#f97316");
+    box.destroy();
+  }
+
+  private activateWeaponBox(box: any) {
+    this.explosionEmitter.emitParticleAt(box.x, box.y, 10);
+    this.playSound('sfx_hit_flesh', 0.4);
+    
+    const keys = Object.keys(WEAPONS_CONFIG);
+    const randomKey = keys[Phaser.Math.Between(0, keys.length - 1)];
+    const config = WEAPONS_CONFIG[randomKey];
+    
+    const item = this.add.text(box.x, box.y, config.icon, { fontSize: '32px' }).setOrigin(0.5);
+    this.physics.add.existing(item);
+    this.weaponItems.add(item);
+    item.setData('weaponKey', randomKey);
+    
+    this.tweens.add({
+      targets: item,
+      y: box.y - 15,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+    
+    box.destroy();
+  }
+
+  private collectWeaponItem(item: any) {
+    const key = item.getData('weaponKey');
+    this.swapWeapon(key);
+    this.points += 50;
+    this.playSound('sfx_powerup', 0.8);
+    this.showFloatingText(item.x, item.y, "HARDWARE_SYNCHRONIZED +50", "#00ffff");
+    item.destroy();
+  }
+
+  private showFloatingText(x: number, y: number, text: string, color: string) {
+    const t = this.add.text(x, y, text, { fontSize: '12px', fontStyle: '900', color, backgroundColor: '#000000', padding: { x: 5, y: 3 }, fontFamily: 'monospace' }).setOrigin(0.5).setDepth(100);
+    this.tweens.add({ targets: t, y: y - 80, alpha: 0, duration: 1200, onComplete: () => t.destroy() });
+  }
+
+  private swapWeapon(key: string) {
+    const config = WEAPONS_CONFIG[key];
+    if (config) {
+      this.currentWeapon = config;
+      this.ammo = config.maxAmmo;
+      
+      this.tweens.add({
+        targets: this.player,
+        scaleX: 1.25,
+        scaleY: 1.25,
+        duration: 80,
+        yoyo: true,
+        ease: 'Sine.easeInOut'
+      });
+
+      this.abilityEmitter.emitParticleAt(this.player.x, this.player.y, 1);
+      this.showFloatingText(this.player.x, this.player.y - 40, `${config.icon} ${config.name} EQUIPPED`, teamColors[this.playerTeam]);
+      this.playSound('sfx_powerup', 0.3);
+
+      this.weaponLabel.setText(config.name);
+      this.player.setTexture(`hum_${this.characterClass.toLowerCase()}_${config.category}`);
+    }
+  }
+
+  private drawHealthBar() {
+    this.playerHpBar.clear();
+    const hpPercent = this.health / this.maxHealth;
+    this.playerHpBar.fillStyle(0x000000, 0.5).fillRect(this.player.x - 25, this.player.y - 45, 50, 6);
+    this.playerHpBar.fillStyle(hpPercent > 0.3 ? 0x10b981 : 0xef4444).fillRect(this.player.x - 25, this.player.y - 45, hpPercent * 50, 6);
+  }
+
+  private updateHUD() {
+    (window as any).gameStats = { 
+      hp: this.health, 
+      maxHp: this.maxHealth, 
+      shield: this.shield, 
+      maxShield: this.maxShield,
+      ammo: this.ammo, 
+      maxAmmo: this.currentWeapon.maxAmmo, 
+      weaponKey: this.currentWeapon.key, 
+      weaponName: this.currentWeapon.name, 
+      isInfinite: this.currentWeapon.isInfinite, 
+      abilityCooldown: this.abilityCooldown, 
+      kills: this.kills, 
+      points: this.points,
+      teamScores: this.teamScores,
+      mode: this.mpConfig?.mode || 'MISSION'
+    };
+  }
 }
+
+const teamColors = { alpha: '#f97316', bravo: '#22d3ee' };
