@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import Peer, { DataConnection } from 'peerjs';
-import { GameMode, CharacterClass, MissionConfig, MPConfig } from '../../App';
+import { CharacterClass, MissionConfig, MPConfig } from '../../App';
 
 export interface WeaponConfig {
   name: string;
@@ -138,6 +138,15 @@ export class MainScene extends Phaser.Scene {
     this.load.audio('sfx_death_human', '/assets/audio/alien-death.flac');
     this.load.audio('sfx_victory', '/assets/audio/level-complete.wav');
     this.load.audio('music_loop', '/assets/audio/bg-music.wav');
+    
+    // Play immediately when loaded, don't wait for other assets
+    this.load.once('filecomplete-audio-music_loop', () => {
+        // Safety check: ensure scene is active and audio system is ready
+        if (this.sys && this.sys.isActive() && this.audioEnabled && !this.bgMusic) {
+            this.bgMusic = this.sound.add('music_loop', { loop: true, volume: 0.1 });
+            this.bgMusic.play();
+        }
+    });
   }
 
   create() {
@@ -174,7 +183,7 @@ export class MainScene extends Phaser.Scene {
     if (this.roomId) this.initMultiplayer();
 
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1); 
-    this.cameras.main.setBounds(0, 0, 2000, 2000);
+    this.cameras.main.setBounds(0, 0, 2000, 2000); 
 
     if (this.isHost && this.mpConfig) {
       for (let i = 0; i < this.mpConfig.alphaBots; i++) this.spawnAIBot('alpha');
@@ -241,7 +250,9 @@ export class MainScene extends Phaser.Scene {
 
   private initAudio() {
     if (!this.audioEnabled) return;
-    if (this.cache.audio.exists('music_loop')) {
+    
+    // Fallback: If music is cached but didn't play in preload (e.g. scene restart)
+    if (!this.bgMusic && this.cache.audio.exists('music_loop')) {
       this.bgMusic = this.sound.add('music_loop', { loop: true, volume: 0.1 });
       this.bgMusic.play();
     }

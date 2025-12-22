@@ -7,8 +7,8 @@ export const createGame = (parent: HTMLElement, playerName: string, avatar: stri
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     parent: parent,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: 1280,
+    height: 720,
     physics: {
       default: 'arcade',
       arcade: {
@@ -19,11 +19,12 @@ export const createGame = (parent: HTMLElement, playerName: string, avatar: stri
     scene: [MainScene],
     scale: {
       mode: Phaser.Scale.RESIZE,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      autoCenter: Phaser.Scale.NO_CENTER,
     },
     backgroundColor: '#0c0a09',
     transparent: false,
     antialias: true,
+    autoFocus: true,
   };
 
   const game = new Phaser.Game(config);

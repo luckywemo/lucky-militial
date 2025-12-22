@@ -97,12 +97,12 @@ const Minimap: React.FC<{ playerPos: {x: number, y: number, rotation: number}, e
 };
 
 const VictoryOverlay: React.FC<{ kills: number, points: number, onNext: () => void, onExit: () => void, isMP?: boolean, winner?: string }> = ({ kills, points, onNext, onExit, isMP, winner }) => (
-  <div className="absolute inset-0 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-8 z-[3000] animate-in fade-in duration-700">
+  <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-8 z-[5000] animate-in fade-in duration-700">
     <div className="tactical-panel max-w-lg w-full p-12 bg-stone-900 border-2 border-orange-500 rounded-3xl text-center shadow-[0_0_100px_rgba(249,115,22,0.3)]">
       <div className="mission-pulse mb-8 relative h-20 w-20 mx-auto">
          <div className="absolute inset-0 flex items-center justify-center text-4xl">🎖️</div>
       </div>
-      <h2 className="text-4xl lg:text-6xl font-black font-stencil text-white uppercase italic mb-2 tracking-widest drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]">
+      <h2 className="text-4xl lg:text-3xl font-black font-stencil text-white uppercase italic mb-2 tracking-widest drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]">
         {isMP ? `${winner}_VICTORY` : 'MISSION_COMPLETE'}
       </h2>
       <div className="h-px w-full bg-gradient-to-r from-transparent via-orange-500/50 to-transparent my-6"></div>
@@ -358,7 +358,7 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
       )}
 
       {/* TACTICAL HUD OVERLAY */}
-      <div className={`absolute inset-0 pointer-events-none p-2 lg:p-12 flex flex-col justify-between z-[2000] ${stats.isOver ? 'opacity-0' : 'opacity-100'} transition-opacity duration-500`}>
+      <div className={`fixed inset-0 pointer-events-none p-2 lg:p-12 flex flex-col justify-between z-[4500] ${stats.isOver ? 'opacity-0' : 'opacity-100'} transition-opacity duration-500`}>
         
         {/* Top Section */}
         <div className="flex justify-between items-start animate-in fade-in slide-in-from-top-6 duration-700">
@@ -428,7 +428,7 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
             <div className="tactical-panel bg-black/80 p-2 lg:p-8 rounded-l-xl lg:rounded-l-3xl border-r-2 lg:border-r-[12px] border-white text-right min-w-[100px] lg:min-w-[220px] shadow-2xl backdrop-blur-xl">
               <span className="text-[5px] lg:text-[11px] font-black text-stone-500 mb-0.5 lg:mb-2 block uppercase tracking-widest">{stats.weaponName}</span>
               <div className="flex items-baseline justify-end gap-1 lg:gap-3">
-                <span className="text-xl lg:text-6xl font-stencil text-white leading-none">{stats.isInfinite ? 'INF' : stats.ammo}</span>
+                <span className="text-xl lg:text-6xl font-stencil text-white leading-none">{stats.isInfinite ? '♾️' : stats.ammo}</span>
               </div>
             </div>
             <button onClick={onExit} className="bg-red-600 text-white px-4 lg:px-12 py-2 lg:py-5 text-[6px] lg:text-[12px] font-black tracking-widest pointer-events-auto transition-all uppercase rounded border-b-2 border-red-900 active:translate-y-1 active:border-b-0 shadow-2xl">Abort</button>
