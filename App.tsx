@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Lobby from './components/Lobby';
 import GameContainer from './components/GameContainer';
@@ -123,6 +124,7 @@ const App: React.FC = () => {
   // Settings State
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [difficultyModifier, setDifficultyModifier] = useState(1);
+  const [virtualControlsEnabled, setVirtualControlsEnabled] = useState(false);
 
   const startCombat = (room: string | null, host: boolean, mode: GameMode, levelId?: number, squadMembers?: {name: string, team: 'alpha' | 'bravo'}[], mpSettings?: MPConfig) => {
     setRoomId(room);
@@ -173,7 +175,9 @@ const App: React.FC = () => {
               audioEnabled,
               setAudioEnabled,
               difficultyModifier,
-              setDifficultyModifier
+              setDifficultyModifier,
+              virtualControlsEnabled,
+              setVirtualControlsEnabled
             }}
           />
         )}
@@ -191,6 +195,7 @@ const App: React.FC = () => {
             squad={squad}
             audioEnabled={audioEnabled}
             difficultyModifier={difficultyModifier}
+            virtualControlsEnabled={virtualControlsEnabled}
             onExit={() => setView('lobby')} 
             onMissionComplete={onMissionComplete}
             onNextLevel={nextLevel}

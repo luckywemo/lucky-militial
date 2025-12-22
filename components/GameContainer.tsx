@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Phaser from 'phaser';
 import { createGame } from '../game/main';
@@ -16,6 +17,7 @@ interface Props {
   squad: {name: string, team: 'alpha' | 'bravo'}[];
   audioEnabled: boolean;
   difficultyModifier: number;
+  virtualControlsEnabled: boolean;
   onExit: () => void;
   onMissionComplete: () => void;
   onNextLevel: () => void;
@@ -26,12 +28,11 @@ const WEAPON_LIST = Object.values(WEAPONS_CONFIG);
 const HUDBar: React.FC<{ value: number, max: number, color: string, label: string, glowColor: string }> = ({ value, max, color, label, glowColor }) => {
   const percent = Math.max(0, Math.min(1, value / max));
   return (
-    <div className="space-y-1 w-full">
-      <div className="flex justify-between text-[6px] lg:text-[8px] font-black uppercase tracking-[0.2em] lg:tracking-[0.4em] text-white/50 px-1">
+    <div className="space-y-0.5 lg:space-y-1 w-full">
+      <div className="flex justify-between text-[5px] lg:text-[8px] font-black uppercase tracking-widest text-white/50 px-0.5">
         <span>{label}</span>
-        <span className="opacity-80">{Math.round(percent * 100)}%</span>
       </div>
-      <div className="h-2 lg:h-3 bg-black/90 border border-white/10 p-[1px] relative rounded-sm overflow-hidden shadow-inner">
+      <div className="h-1 lg:h-3 bg-black/90 border border-white/10 p-[0.5px] lg:p-[1px] relative rounded-sm overflow-hidden shadow-inner">
          <div 
             className={`h-full transition-all duration-300 ${color} rounded-sm`} 
             style={{ 
@@ -44,41 +45,151 @@ const HUDBar: React.FC<{ value: number, max: number, color: string, label: strin
   );
 };
 
+const Minimap: React.FC<{ playerPos: {x: number, y: number, rotation: number}, entities: any[], playerTeam: 'alpha' | 'bravo' }> = ({ playerPos, entities, playerTeam }) => {
+  const mapSize = 2000;
+  const uiSize = 120; // Size on screen
+  const scale = uiSize / mapSize;
+
+  return (
+    <div className="relative w-[120px] h-[120px] bg-black/80 border-2 border-stone-800 rounded-full overflow-hidden shadow-2xl backdrop-blur-md pointer-events-none group">
+      {/* Grid background */}
+      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)', backgroundSize: '20px 20px' }}></div>
+      
+      {/* Radar Sweep Effect */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-orange-500/10 to-orange-500/30 rounded-full animate-[spin_4s_linear_infinite] origin-center opacity-40"></div>
+      
+      {/* Crosshairs */}
+      <div className="absolute top-1/2 left-0 w-full h-[1px] bg-white/5"></div>
+      <div className="absolute left-1/2 top-0 w-[1px] h-full bg-white/5"></div>
+
+      {/* Entities */}
+      {entities.map((e, i) => {
+        const isEnemy = e.team !== playerTeam;
+        const color = isEnemy ? 'bg-red-500 shadow-[0_0_8px_#ef4444]' : (e.team === 'alpha' ? 'bg-orange-400' : 'bg-cyan-400');
+        return (
+          <div 
+            key={i} 
+            className={`absolute w-1 h-1 rounded-full transition-all duration-100 ${color}`}
+            style={{ 
+              left: `${e.x * scale}px`, 
+              top: `${e.y * scale}px`,
+              transform: 'translate(-50%, -50%)'
+            }}
+          />
+        );
+      })}
+
+      {/* Player Self */}
+      <div 
+        className="absolute w-2 h-2 bg-green-400 shadow-[0_0_10px_#4ade80] rounded-sm"
+        style={{ 
+          left: `${playerPos.x * scale}px`, 
+          top: `${playerPos.y * scale}px`,
+          transform: `translate(-50%, -50%) rotate(${playerPos.rotation}rad)`
+        }}
+      >
+        <div className="absolute top-[-4px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-b-[5px] border-b-green-400"></div>
+      </div>
+
+      <div className="absolute bottom-1 w-full text-center text-[6px] font-black text-white/20 uppercase tracking-[0.2em]">Scanner_Active</div>
+    </div>
+  );
+};
+
+const VictoryOverlay: React.FC<{ kills: number, points: number, onNext: () => void, onExit: () => void, isMP?: boolean, winner?: string }> = ({ kills, points, onNext, onExit, isMP, winner }) => (
+  <div className="absolute inset-0 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-8 z-[3000] animate-in fade-in duration-700">
+    <div className="tactical-panel max-w-lg w-full p-12 bg-stone-900 border-2 border-orange-500 rounded-3xl text-center shadow-[0_0_100px_rgba(249,115,22,0.3)]">
+      <div className="mission-pulse mb-8 relative h-20 w-20 mx-auto">
+         <div className="absolute inset-0 flex items-center justify-center text-4xl">🎖️</div>
+      </div>
+      <h2 className="text-4xl lg:text-6xl font-black font-stencil text-white uppercase italic mb-2 tracking-widest drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]">
+        {isMP ? `${winner}_VICTORY` : 'MISSION_COMPLETE'}
+      </h2>
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-orange-500/50 to-transparent my-6"></div>
+      
+      <div className="grid grid-cols-2 gap-4 mb-10">
+        <div className="bg-black/60 p-4 rounded border border-stone-800">
+           <div className="text-[10px] text-stone-500 font-black uppercase mb-1">UNITS_RETIRED</div>
+           <div className="text-3xl font-stencil text-white">{kills}</div>
+        </div>
+        <div className="bg-black/60 p-4 rounded border border-stone-800">
+           <div className="text-[10px] text-stone-500 font-black uppercase mb-1">COMMAND_SCORE</div>
+           <div className="text-3xl font-stencil text-orange-500">{points}</div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {!isMP && (
+          <button 
+            onClick={onNext}
+            className="w-full py-5 bg-white text-stone-950 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-xl active:scale-95"
+          >
+            PROCEED_TO_NEXT_SECTOR
+          </button>
+        )}
+        <button 
+          onClick={onExit}
+          className="w-full py-4 bg-stone-800 text-stone-400 font-black text-[10px] uppercase tracking-widest rounded-xl border border-stone-700 hover:text-white transition-all active:scale-95"
+        >
+          RETURN_TO_COMMAND_HQ
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 const FloatingStick: React.FC<{
   side: 'left' | 'right';
+  onDown?: () => void;
   onMove: (x: number, y: number) => void;
   onEnd: () => void;
-}> = ({ side, onMove, onEnd }) => {
+}> = ({ side, onDown, onMove, onEnd }) => {
   const [active, setActive] = useState(false);
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const pointerId = useRef<number | null>(null);
-  const radius = window.innerWidth < 640 ? 48 : 64;
+  const radius = window.innerWidth < 640 ? 45 : 75;
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (pointerId.current !== null) return;
+    
+    // Lock the pointer to this element for reliable dragging
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+    
     pointerId.current = e.pointerId;
     setOrigin({ x: e.clientX, y: e.clientY });
     setKnob({ x: 0, y: 0 });
     setActive(true);
+    
+    if (onDown) onDown();
   };
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
     if (e.pointerId !== pointerId.current) return;
+    
     let dx = e.clientX - origin.x;
     let dy = e.clientY - origin.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
+    
     if (dist > radius) {
       const angle = Math.atan2(dy, dx);
       dx = Math.cos(angle) * radius;
       dy = Math.sin(angle) * radius;
     }
+    
     setKnob({ x: dx, y: dy });
     onMove(dx / radius, dy / radius);
   }, [origin, onMove, radius]);
 
   const handlePointerUp = useCallback((e: PointerEvent) => {
     if (e.pointerId !== pointerId.current) return;
+    
+    const target = e.currentTarget as HTMLElement;
+    if (target && typeof target.releasePointerCapture === 'function') {
+        target.releasePointerCapture(e.pointerId);
+    }
+    
     pointerId.current = null;
     setActive(false);
     onEnd(); 
@@ -96,11 +207,14 @@ const FloatingStick: React.FC<{
   }, [active, handlePointerMove, handlePointerUp]);
 
   return (
-    <div onPointerDown={handlePointerDown} className={`absolute top-0 bottom-0 w-1/2 touch-none pointer-events-auto z-[1000] ${side === 'left' ? 'left-0' : 'right-0'}`}>
+    <div 
+      onPointerDown={handlePointerDown} 
+      className={`absolute top-0 bottom-0 w-1/2 touch-none pointer-events-auto z-[4000] ${side === 'left' ? 'left-0' : 'right-0'}`}
+    >
       {active && (
-        <div className="fixed pointer-events-none z-[1001]" style={{ left: origin.x - (radius + 6), top: origin.y - (radius + 6) }}>
-          <div className="rounded-full border-2 border-white/20 bg-black/60 backdrop-blur-md flex items-center justify-center shadow-2xl" style={{ width: (radius * 2 + 12), height: (radius * 2 + 12) }}>
-            <div className="bg-white/30 rounded-full border border-white/20 shadow-lg" style={{ width: radius * 0.8, height: radius * 0.8, transform: `translate(${knob.x}px, ${knob.y}px)` }}></div>
+        <div className="fixed pointer-events-none z-[4001]" style={{ left: origin.x - radius, top: origin.y - radius }}>
+          <div className="rounded-full border-2 border-white/20 bg-black/60 backdrop-blur-md flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)]" style={{ width: radius * 2, height: radius * 2 }}>
+            <div className="bg-orange-500/80 rounded-full shadow-[0_0_15px_#f97316]" style={{ width: radius * 0.8, height: radius * 0.8, transform: `translate(${knob.x}px, ${knob.y}px)` }}></div>
           </div>
         </div>
       )}
@@ -108,17 +222,37 @@ const FloatingStick: React.FC<{
   );
 };
 
-const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, roomId, isHost, gameMode, mission, mpConfig, squad, audioEnabled, difficultyModifier, onExit, onMissionComplete, onNextLevel }) => {
+const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, roomId, isHost, gameMode, mission, mpConfig, squad, audioEnabled, difficultyModifier, virtualControlsEnabled, onExit, onMissionComplete, onNextLevel }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
-  const [stats, setStats] = useState({ 
-    hp: 100, maxHp: 100, shield: 100, ammo: 0, maxAmmo: 0, weaponKey: 'pistol', weaponName: 'SIDEARM', isInfinite: true, abilityCooldown: 0, kills: 0, points: 0, teamScores: { alpha: 0, bravo: 0 }, mode: 'MISSION'
+  const [stats, setStats] = useState<any>({ 
+    hp: 100, maxHp: 100, shield: 100, ammo: 0, maxAmmo: 0, weaponKey: 'pistol', weaponName: 'SIDEARM', isInfinite: true, abilityCooldown: 0, kills: 0, targetKills: 0, points: 0, teamScores: { alpha: 0, bravo: 0 }, mode: 'MISSION', isOver: false, playerPos: { x: 1000, y: 1000, rotation: 0 }, entities: []
   });
+  const [victoryData, setVictoryData] = useState<any>(null);
+  const keysPressed = useRef(new Set<string>());
 
   const updateVirtualInput = useCallback((data: any) => {
     const scene = gameRef.current?.scene.getScene('MainScene') as any;
     if (scene?.virtualInput) Object.assign(scene.virtualInput, data);
   }, []);
+
+  const updateMovementFromKeys = useCallback(() => {
+    const keys = keysPressed.current;
+    let moveX = 0;
+    let moveY = 0;
+    if (keys.has('KeyW') || keys.has('ArrowUp')) moveY -= 1;
+    if (keys.has('KeyS') || keys.has('ArrowDown')) moveY += 1;
+    if (keys.has('KeyA') || keys.has('ArrowLeft')) moveX -= 1;
+    if (keys.has('KeyD') || keys.has('ArrowRight')) moveX += 1;
+    
+    if (moveX !== 0 && moveY !== 0) {
+      const length = Math.sqrt(moveX * moveX + moveY * moveY);
+      moveX /= length;
+      moveY /= length;
+    }
+    
+    updateVirtualInput({ moveX, moveY });
+  }, [updateVirtualInput]);
 
   useEffect(() => {
     if (containerRef.current && !gameRef.current) {
@@ -129,13 +263,72 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
         scene.difficultyModifier = difficultyModifier;
       }
     }
+
+    const onComplete = (e: any) => {
+        setVictoryData(e.detail);
+        onMissionComplete();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6'].includes(e.code)) {
+        e.preventDefault();
+      }
+      
+      keysPressed.current.add(e.code);
+      if (e.code === 'Space' || e.code === 'ShiftLeft') updateVirtualInput({ isAbility: true });
+      
+      const digitMatch = e.code.match(/Digit([1-6])/);
+      if (digitMatch) {
+        const index = parseInt(digitMatch[1]) - 1;
+        if (WEAPON_LIST[index]) {
+          window.dispatchEvent(new CustomEvent('weapon_swap', { detail: { key: WEAPON_LIST[index].key } }));
+        }
+      }
+
+      updateMovementFromKeys();
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressed.current.delete(e.code);
+      if (e.code === 'Space' || e.code === 'ShiftLeft') updateVirtualInput({ isAbility: false });
+      updateMovementFromKeys();
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+      updateVirtualInput({ aimAngle: angle });
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) updateVirtualInput({ isFiring: true });
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button === 0) updateVirtualInput({ isFiring: false });
+    };
+
+    window.addEventListener('MISSION_COMPLETE', onComplete);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
+
     return () => {
+      window.removeEventListener('MISSION_COMPLETE', onComplete);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
     };
-  }, [playerName, characterClass, avatar, roomId, isHost, gameMode, mission, mpConfig]);
+  }, [playerName, characterClass, avatar, roomId, isHost, gameMode, mission, mpConfig, squad, audioEnabled, difficultyModifier, onMissionComplete, updateMovementFromKeys, updateVirtualInput]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -146,95 +339,123 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
     return () => clearInterval(interval);
   }, []);
 
+  const playerTeam = squad.find(m => m.name === playerName)?.team || 'alpha';
+  const showVirtualControls = virtualControlsEnabled || window.innerWidth < 1024;
+
   return (
     <div className="relative w-full h-full bg-black overflow-hidden font-mono text-stone-100 touch-none flex flex-col">
-      <div ref={containerRef} className="flex-1 relative" />
+      <div ref={containerRef} className="flex-1 relative cursor-crosshair" />
       
+      {victoryData && (
+        <VictoryOverlay 
+            kills={stats.kills} 
+            points={stats.points} 
+            onNext={onNextLevel} 
+            onExit={onExit} 
+            isMP={gameMode === 'multiplayer'}
+            winner={victoryData.winner}
+        />
+      )}
+
       {/* TACTICAL HUD OVERLAY */}
-      <div className="absolute inset-0 pointer-events-none p-4 lg:p-12 flex flex-col justify-between z-[2000]">
+      <div className={`absolute inset-0 pointer-events-none p-2 lg:p-12 flex flex-col justify-between z-[2000] ${stats.isOver ? 'opacity-0' : 'opacity-100'} transition-opacity duration-500`}>
         
-        {/* Top Section - Operator Stats & Team Score */}
-        <div className="flex justify-between items-start animate-in fade-in slide-in-from-top-10 duration-700">
-          <div className="tactical-panel bg-black/70 p-3 lg:p-6 border-l-4 border-orange-500 rounded-r-xl lg:rounded-r-2xl min-w-[180px] lg:min-w-[320px] backdrop-blur-xl shadow-2xl relative overflow-hidden">
-            <div className="flex justify-between items-start mb-2 lg:mb-4">
+        {/* Top Section */}
+        <div className="flex justify-between items-start animate-in fade-in slide-in-from-top-6 duration-700">
+          <div className="tactical-panel bg-black/60 p-2 lg:p-6 border-l-2 lg:border-l-4 border-orange-500 rounded-r min-w-[140px] lg:min-w-[320px] backdrop-blur-md shadow-2xl overflow-hidden">
+            <div className="flex justify-between items-start mb-1 lg:mb-4">
               <div>
-                <span className="text-[7px] lg:text-[10px] font-black uppercase text-orange-500/60 tracking-[0.2em] lg:tracking-[0.4em]">{stats.mode}</span>
-                <div className="text-sm lg:text-2xl font-black font-stencil text-white leading-tight mt-0.5">{playerName}</div>
+                <span className="text-[5px] lg:text-[10px] font-black uppercase text-orange-500/80 tracking-widest">{stats.mode}</span>
+                <div className="text-[10px] lg:text-2xl font-black font-stencil text-white leading-tight">{playerName}</div>
               </div>
-              <div className="text-right hidden sm:block">
-                <div className="text-[7px] lg:text-[9px] font-black text-white/40 uppercase tracking-widest mb-0.5 lg:mb-1">Tactical_Score</div>
-                <div className="text-sm lg:text-3xl font-stencil text-white drop-shadow-lg">{stats.points.toLocaleString()}</div>
-              </div>
+              {gameMode === 'mission' && (
+                <div className="text-right">
+                   <div className="text-[6px] lg:text-[10px] text-stone-500 font-black">OBJECTIVE</div>
+                   <div className="text-[10px] lg:text-lg font-black text-white">{stats.kills} / {stats.targetKills}</div>
+                </div>
+              )}
             </div>
             
-            <div className="hidden lg:grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-white/5 p-3 rounded-xl border border-white/5 shadow-inner">
-                <div className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-1">Kills</div>
-                <div className="text-2xl font-stencil text-white">{stats.kills}</div>
-              </div>
-              <div className="bg-white/5 p-3 rounded-xl border border-white/5 shadow-inner">
-                <div className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-1">Class</div>
-                <div className="text-[14px] font-black text-orange-500 uppercase tracking-tighter">{characterClass}</div>
-              </div>
-            </div>
-
-            <div className="space-y-2 lg:space-y-5">
+            <div className="space-y-1 lg:space-y-5">
               <HUDBar label="HULL" value={stats.hp} max={stats.maxHp} color="bg-orange-500" glowColor="rgba(249,115,22,0.6)" />
               <HUDBar label="SHIELD" value={stats.shield} max={100} color="bg-cyan-400" glowColor="rgba(34,211,238,0.6)" />
             </div>
           </div>
 
-          <div className="flex gap-2 lg:gap-6">
-            <div className="tactical-panel bg-black/80 px-4 lg:px-10 py-2 lg:py-5 border-b-2 lg:border-b-4 border-orange-500 rounded-lg lg:rounded-2xl flex flex-col items-center shadow-2xl backdrop-blur-md">
-              <span className="text-[7px] lg:text-[11px] font-black text-orange-500/80 mb-0.5 lg:mb-1 tracking-[0.1em] lg:tracking-[0.3em] uppercase">ALPHA</span>
-              <span className="text-2xl lg:text-5xl font-stencil text-white drop-shadow-lg">{stats.teamScores.alpha}</span>
-            </div>
-            <div className="tactical-panel bg-black/80 px-4 lg:px-10 py-2 lg:py-5 border-b-2 lg:border-b-4 border-cyan-500 rounded-lg lg:rounded-2xl flex flex-col items-center shadow-2xl backdrop-blur-md">
-              <span className="text-[7px] lg:text-[11px] font-black text-cyan-500/80 mb-0.5 lg:mb-1 tracking-[0.1em] lg:tracking-[0.3em] uppercase">BRAVO</span>
-              <span className="text-2xl lg:text-5xl font-stencil text-white drop-shadow-lg">{stats.teamScores.bravo}</span>
-            </div>
+          <div className="flex flex-col items-end gap-4">
+             <Minimap playerPos={stats.playerPos} entities={stats.entities} playerTeam={playerTeam} />
+             {gameMode === 'multiplayer' && (
+                <div className="flex gap-1 lg:gap-4 animate-in fade-in zoom-in duration-300">
+                  <div className="tactical-panel bg-black/80 px-4 py-2 border-b-2 border-orange-500 rounded flex flex-col items-center backdrop-blur-md">
+                    <span className="text-[7px] font-black text-orange-500 uppercase tracking-tighter">ALPHA</span>
+                    <span className="text-xl font-stencil text-white">{stats.teamScores.alpha}</span>
+                  </div>
+                  <div className="tactical-panel bg-black/80 px-4 py-2 border-b-2 border-cyan-500 rounded flex flex-col items-center backdrop-blur-md">
+                    <span className="text-[7px] font-black text-cyan-500 uppercase tracking-tighter">BRAVO</span>
+                    <span className="text-xl font-stencil text-white">{stats.teamScores.bravo}</span>
+                  </div>
+                </div>
+             )}
           </div>
         </div>
 
-        {/* Bottom Section - Weapon & Controls */}
-        <div className="flex justify-between items-end animate-in fade-in slide-in-from-bottom-10 duration-700">
-          <div className="flex flex-col gap-3 lg:gap-6 items-start pointer-events-auto">
+        {/* Bottom Section */}
+        <div className="flex justify-between items-end animate-in fade-in slide-in-from-bottom-6 duration-700">
+          <div className="flex flex-col gap-2 lg:gap-6 items-start pointer-events-auto">
              <button 
                onPointerDown={() => updateVirtualInput({isAbility:true})} 
                onPointerUp={() => updateVirtualInput({isAbility:false})} 
-               className={`w-14 h-14 lg:w-24 lg:h-24 rounded-2xl lg:rounded-3xl border-2 font-black flex flex-col items-center justify-center transition-all ${stats.abilityCooldown > 0 ? 'bg-stone-900/80 border-stone-800 text-stone-700' : 'bg-orange-600 border-orange-400 text-white active:scale-90 hover:bg-orange-500'}`}
+               className={`w-10 h-10 lg:w-24 lg:h-24 rounded-lg lg:rounded-3xl border font-black flex flex-col items-center justify-center transition-all ${stats.abilityCooldown > 0 ? 'bg-stone-900/80 border-stone-800 text-stone-700' : 'bg-orange-600 border-orange-400 text-white active:scale-90'}`}
              >
-               <span className="text-[7px] lg:text-[10px] uppercase tracking-widest font-black mb-0.5 lg:mb-1">Boost</span>
-               <span className="text-xs lg:text-2xl font-stencil">{stats.abilityCooldown > 0 ? 'WAIT' : 'READY'}</span>
+               <span className="text-[5px] lg:text-[10px] uppercase font-black">Boost</span>
+               <span className="text-[8px] lg:text-2xl font-stencil leading-none">{stats.abilityCooldown > 0 ? 'WAIT' : 'READY'}</span>
              </button>
-             <div className="flex gap-2 bg-black/40 p-1.5 rounded-xl border border-white/5 backdrop-blur-sm shadow-xl overflow-x-auto max-w-[40vw] sm:max-w-none">
-                {WEAPON_LIST.map(w => (
+             <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/5 backdrop-blur-sm overflow-x-auto max-w-[35vw]">
+                {WEAPON_LIST.map((w, idx) => (
                   <button 
                     key={w.key} 
                     onClick={() => window.dispatchEvent(new CustomEvent('weapon_swap', {detail: {key: w.key}}))} 
-                    className={`w-10 h-10 lg:w-14 lg:h-14 rounded-lg lg:rounded-xl border-2 flex-shrink-0 flex items-center justify-center text-lg lg:text-2xl transition-all ${stats.weaponKey === w.key ? 'bg-white text-black border-white shadow-[0_0_10px_white]' : 'bg-black/60 border-stone-800 text-stone-600 hover:text-stone-300'}`}
+                    className={`relative w-8 h-8 lg:w-14 lg:h-14 rounded-md lg:rounded-xl border flex-shrink-0 flex items-center justify-center text-sm lg:text-2xl transition-all ${stats.weaponKey === w.key ? 'bg-white text-black border-white' : 'bg-black/60 border-stone-800 text-stone-600'}`}
                   >
                     {w.icon}
+                    <span className="absolute bottom-0 right-1 text-[6px] lg:text-[10px] font-black opacity-30">{idx + 1}</span>
                   </button>
                 ))}
              </div>
           </div>
 
-          <div className="flex flex-col items-end gap-3 lg:gap-8">
-            <div className="tactical-panel bg-black/80 p-3 lg:p-8 rounded-l-2xl lg:rounded-l-3xl border-r-4 lg:border-r-[12px] border-white text-right min-w-[120px] lg:min-w-[220px] shadow-2xl backdrop-blur-xl">
-              <span className="text-[7px] lg:text-[11px] font-black text-stone-500 mb-1 lg:mb-2 block uppercase tracking-[0.2em] lg:tracking-[0.4em] opacity-80">{stats.weaponName}</span>
-              <div className="flex items-baseline justify-end gap-1.5 lg:gap-3">
-                <span className="text-2xl lg:text-6xl font-stencil text-white tracking-tighter drop-shadow-lg">{stats.isInfinite ? 'INF' : stats.ammo}</span>
-                {!stats.isInfinite && <span className="text-[8px] lg:text-sm font-black text-stone-600 tracking-widest uppercase">/ {stats.maxAmmo}</span>}
+          <div className="flex flex-col items-end gap-2 lg:gap-8">
+            <div className="tactical-panel bg-black/80 p-2 lg:p-8 rounded-l-xl lg:rounded-l-3xl border-r-2 lg:border-r-[12px] border-white text-right min-w-[100px] lg:min-w-[220px] shadow-2xl backdrop-blur-xl">
+              <span className="text-[5px] lg:text-[11px] font-black text-stone-500 mb-0.5 lg:mb-2 block uppercase tracking-widest">{stats.weaponName}</span>
+              <div className="flex items-baseline justify-end gap-1 lg:gap-3">
+                <span className="text-xl lg:text-6xl font-stencil text-white leading-none">{stats.isInfinite ? 'INF' : stats.ammo}</span>
               </div>
             </div>
-            <button onClick={onExit} className="bg-red-600 hover:bg-red-500 text-white px-6 lg:px-12 py-3 lg:py-5 text-[8px] lg:text-[12px] font-black tracking-[0.3em] lg:tracking-[0.6em] pointer-events-auto transition-all uppercase rounded-md lg:rounded-lg border-b-2 lg:border-b-[6px] border-red-900 active:translate-y-1 active:border-b-0 shadow-2xl">Abort</button>
+            <button onClick={onExit} className="bg-red-600 text-white px-4 lg:px-12 py-2 lg:py-5 text-[6px] lg:text-[12px] font-black tracking-widest pointer-events-auto transition-all uppercase rounded border-b-2 border-red-900 active:translate-y-1 active:border-b-0 shadow-2xl">Abort</button>
           </div>
         </div>
       </div>
 
-      <FloatingStick side="left" onMove={(x, y) => updateVirtualInput({ moveX: x, moveY: y })} onEnd={() => updateVirtualInput({ moveX: 0, moveY: 0 })} />
-      <FloatingStick side="right" onMove={(x, y) => updateVirtualInput({ aimAngle: Math.atan2(y, x), isFiring: true })} onEnd={() => updateVirtualInput({ isFiring: false })} />
+      {!stats.isOver && showVirtualControls && (
+        <div className="absolute inset-0 pointer-events-none z-[4000]">
+            <FloatingStick 
+                side="left" 
+                onMove={(x, y) => updateVirtualInput({ moveX: x, moveY: y })} 
+                onEnd={() => updateVirtualInput({ moveX: 0, moveY: 0 })} 
+            />
+            <FloatingStick 
+                side="right" 
+                onDown={() => updateVirtualInput({ isFiring: true })}
+                onMove={(x, y) => {
+                    const dist = Math.sqrt(x*x + y*y);
+                    if (dist > 0.1) {
+                      updateVirtualInput({ aimAngle: Math.atan2(y, x), isFiring: true });
+                    }
+                }} 
+                onEnd={() => updateVirtualInput({ isFiring: false })} 
+            />
+        </div>
+      )}
     </div>
   );
 };

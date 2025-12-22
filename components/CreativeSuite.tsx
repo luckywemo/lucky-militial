@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -32,10 +33,8 @@ const CreativeSuite: React.FC<Props> = ({ onBack, setAvatar }) => {
   };
 
   const processAI = async () => {
-    if (tab === 'generate' || tab === 'video') {
-      if (!(window as any).aistudio?.hasSelectedApiKey()) {
-        await (window as any).aistudio?.openSelectKey();
-      }
+    if (!(window as any).aistudio?.hasSelectedApiKey()) {
+      await (window as any).aistudio?.openSelectKey();
     }
 
     setLoading(true);
@@ -48,21 +47,27 @@ const CreativeSuite: React.FC<Props> = ({ onBack, setAvatar }) => {
       
       if (tab === 'generate') {
         setStatus('Synthesizing Bio-Metrics...');
-        addThought("Initializing Pro-Image Neural Engine...");
+        addThought("Initializing Pro-Image Engine...");
         addThought("Calibrating semantic vectors...");
         
         const res = await ai.models.generateContent({
           model: 'gemini-3-pro-image-preview',
           contents: { parts: [{ text: prompt }] },
           config: { 
-            imageConfig: { imageSize: imgSize, aspectRatio: "1:1" },
-            thinkingConfig: { thinkingBudget: 1000 }
+            imageConfig: { imageSize: imgSize, aspectRatio: "1:1" }
           }
         });
         
-        addThought("Pixel synthesis complete.");
-        const part = res.candidates[0].content.parts.find(p => p.inlineData);
-        if (part) setResult(`data:image/png;base64,${part.inlineData.data}`);
+        const candidate = res.candidates?.[0];
+        const parts = candidate?.content?.parts;
+        const imagePart = parts?.find(p => p.inlineData);
+
+        if (imagePart) {
+          setResult(`data:image/png;base64,${imagePart.inlineData.data}`);
+          addThought("Pixel synthesis complete.");
+        } else {
+          throw new Error("Target data not found in candidate output.");
+        }
       } 
       else if (tab === 'edit') {
         if (!sourceImg) throw new Error("Hardware Asset Required.");
@@ -78,8 +83,15 @@ const CreativeSuite: React.FC<Props> = ({ onBack, setAvatar }) => {
             ]
           }
         });
-        const part = res.candidates[0].content.parts.find(p => p.inlineData);
-        if (part) setResult(`data:image/png;base64,${part.inlineData.data}`);
+        const candidate = res.candidates?.[0];
+        const parts = candidate?.content?.parts;
+        const imagePart = parts?.find(p => p.inlineData);
+
+        if (imagePart) {
+          setResult(`data:image/png;base64,${imagePart.inlineData.data}`);
+        } else {
+          throw new Error("No edited data returned.");
+        }
       }
       else if (tab === 'video') {
         if (!sourceImg) throw new Error("Keyframe Asset Required.");
@@ -87,10 +99,12 @@ const CreativeSuite: React.FC<Props> = ({ onBack, setAvatar }) => {
         addThought("Spinning up Veo Engine...");
         
         const base64 = sourceImg.split(',')[1];
+        const mimeType = sourceImg.split(';')[0].split(':')[1];
+
         let op = await ai.models.generateVideos({
           model: 'veo-3.1-fast-generate-preview',
           prompt: prompt,
-          image: { imageBytes: base64, mimeType: sourceImg.split(';')[0].split(':')[1] },
+          image: { imageBytes: base64, mimeType: mimeType },
           config: { numberOfVideos: 1, resolution: '720p', aspectRatio: aspect }
         });
 
@@ -105,11 +119,13 @@ const CreativeSuite: React.FC<Props> = ({ onBack, setAvatar }) => {
           const vRes = await fetch(`${link}&key=${process.env.API_KEY}`);
           const blob = await vRes.blob();
           setResult(URL.createObjectURL(blob));
+        } else {
+          throw new Error("Temporal simulation failed.");
         }
       }
     } catch (e: any) {
       if (e.message?.includes("Requested entity was not found")) {
-        setError("AUTH_FAILURE: Check Neural Cloud Project.");
+        setError("AUTH_FAILURE: Select Project Key.");
         await (window as any).aistudio?.openSelectKey();
       } else {
         setError("SYS_EXCEPTION: " + e.message);
@@ -121,78 +137,78 @@ const CreativeSuite: React.FC<Props> = ({ onBack, setAvatar }) => {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 lg:p-10 animate-in fade-in duration-500 font-mono overflow-y-auto overflow-x-hidden">
-      <div className="w-full max-w-[1300px] grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8">
+    <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 lg:p-10 animate-in fade-in duration-500 font-mono overflow-y-auto overflow-x-hidden bg-black">
+      <div className="w-full max-w-[1300px] grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-8">
         
         {/* LEFT CONTROL PANEL */}
-        <div className="lg:col-span-4 flex flex-col gap-4 lg:gap-6">
-          <div className="tactical-panel p-4 sm:p-8 bg-stone-900/90 border border-stone-800 rounded-xl lg:rounded-2xl relative overflow-hidden group">
-             <button onClick={onBack} className="flex items-center gap-2 text-stone-500 hover:text-white transition-all text-[9px] lg:text-[11px] font-black tracking-widest uppercase mb-3 lg:mb-4 group/btn">
-                <span className="group-hover/btn:-translate-x-1 transition-transform">←</span> <span className="hidden sm:inline">BACK_TO_COMMAND</span><span className="sm:hidden">EXIT</span>
+        <div className="lg:col-span-4 flex flex-col gap-3 lg:gap-6">
+          <div className="tactical-panel p-3 lg:p-8 bg-stone-900/90 border border-stone-800 rounded-xl relative overflow-hidden group">
+             <button onClick={onBack} className="flex items-center gap-2 text-stone-500 hover:text-white transition-all text-[8px] lg:text-[11px] font-black tracking-widest uppercase mb-2 lg:mb-4 group/btn">
+                <span>←</span> <span className="hidden sm:inline">BACK_TO_COMMAND</span><span className="sm:hidden">BACK</span>
              </button>
-             <h1 className="font-stencil text-2xl lg:text-5xl font-black text-white leading-none uppercase mb-1 drop-shadow-[0_2px_15px_rgba(249,115,22,0.3)]">
+             <h1 className="font-stencil text-xl lg:text-5xl font-black text-white leading-none uppercase mb-1 drop-shadow-[0_2px_15px_rgba(249,115,22,0.3)]">
                BIO<span className="text-orange-500">FORGE</span>
              </h1>
-             <div className="text-[8px] lg:text-[10px] font-black text-stone-600 tracking-[0.3em] lg:tracking-[0.5em] uppercase">Synthesis_Terminal</div>
+             <div className="text-[7px] lg:text-[10px] font-black text-stone-600 tracking-[0.2em] lg:tracking-[0.5em] uppercase">Synthesis_Terminal</div>
           </div>
 
-          <div className="tactical-panel flex-1 p-4 lg:p-8 bg-stone-900/60 rounded-xl lg:rounded-3xl border border-stone-800 flex flex-col gap-4 lg:gap-6 shadow-2xl relative overflow-hidden">
-             <div className="flex gap-1.5 bg-black/60 p-1 rounded-lg border border-stone-800 shadow-inner">
+          <div className="tactical-panel flex-1 p-3 lg:p-8 bg-stone-900/60 rounded-xl lg:rounded-3xl border border-stone-800 flex flex-col gap-3 lg:gap-6 shadow-2xl relative">
+             <div className="flex gap-1 bg-black/60 p-1 rounded-lg border border-stone-800 shadow-inner">
                {(['generate', 'edit', 'video'] as const).map(t => (
                  <button 
                    key={t}
                    onClick={() => { setTab(t); setResult(null); }}
-                   className={`flex-1 py-2 lg:py-4 text-[8px] lg:text-[10px] font-black uppercase tracking-[0.2em] lg:tracking-[0.3em] transition-all rounded-md ${tab === t ? 'bg-orange-600 text-white shadow-lg' : 'text-stone-600 hover:text-stone-300'}`}
+                   className={`flex-1 py-2 lg:py-4 text-[7px] lg:text-[10px] font-black uppercase tracking-widest transition-all rounded ${tab === t ? 'bg-orange-600 text-white shadow-lg' : 'text-stone-600 hover:text-stone-300'}`}
                  >
                    {t}
                  </button>
                ))}
              </div>
 
-             <div className="flex-1 flex flex-col gap-4 lg:gap-8 py-2">
+             <div className="flex flex-col gap-3 lg:gap-8 py-1">
                 {(tab === 'edit' || tab === 'video') && (
-                  <div className="space-y-2">
-                    <label className="text-[8px] lg:text-[10px] font-black text-stone-500 uppercase tracking-[0.3em] px-1 block">Hardware_Asset</label>
+                  <div className="space-y-1">
+                    <label className="text-[7px] lg:text-[10px] font-black text-stone-500 uppercase tracking-widest px-1 block">Hardware_Asset</label>
                     {!sourceImg ? (
-                      <div className="relative aspect-video bg-black/40 border-2 border-dashed border-stone-800 rounded-xl flex flex-col items-center justify-center hover:border-orange-500 transition-all cursor-pointer group shadow-inner overflow-hidden">
+                      <div className="relative aspect-video bg-black/40 border border-dashed border-stone-800 rounded flex flex-col items-center justify-center hover:border-orange-500 transition-all cursor-pointer group shadow-inner overflow-hidden">
                         <input type="file" accept="image/*" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                        <span className="text-2xl lg:text-4xl mb-2 opacity-30 group-hover:opacity-100 transition-all">📸</span>
-                        <span className="text-[7px] lg:text-[9px] text-stone-700 font-black uppercase tracking-[0.3em] lg:tracking-[0.5em]">Mount_Vector</span>
+                        <span className="text-xl lg:text-4xl mb-1 opacity-30 group-hover:opacity-100 transition-all">📸</span>
+                        <span className="text-[6px] lg:text-[9px] text-stone-700 font-black uppercase tracking-widest">Mount_Vector</span>
                       </div>
                     ) : (
-                      <div className="relative group rounded-xl overflow-hidden border-2 border-stone-800 shadow-2xl">
+                      <div className="relative group rounded-xl overflow-hidden border border-stone-800 shadow-2xl">
                         <img src={sourceImg} className="w-full aspect-video object-cover brightness-90 group-hover:brightness-110 transition-all" alt="Asset" />
-                        <button onClick={() => setSourceImg(null)} className="absolute top-2 right-2 bg-red-600/80 hover:bg-red-600 p-1.5 rounded-md transition-all z-20">
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M6 18L18 6M6 6l12 12" /></svg>
+                        <button onClick={() => setSourceImg(null)} className="absolute top-2 right-2 bg-red-600/80 hover:bg-red-600 p-1 rounded transition-all z-20">
+                          <svg className="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                       </div>
                     )}
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <label className="text-[8px] lg:text-[10px] font-black text-stone-500 uppercase tracking-[0.3em] px-1 block">Neural_Command</label>
+                <div className="space-y-1">
+                  <label className="text-[7px] lg:text-[10px] font-black text-stone-500 uppercase tracking-widest px-1 block">Neural_Command</label>
                   <textarea 
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    className="w-full bg-black/60 border border-stone-800 p-4 text-[10px] lg:text-[12px] text-stone-100 h-24 lg:h-40 focus:border-orange-500 outline-none transition-all resize-none font-bold placeholder:text-stone-800 uppercase tracking-widest shadow-inner rounded-xl"
+                    className="w-full bg-black/60 border border-stone-800 p-2 lg:p-4 text-[9px] lg:text-[12px] text-stone-100 h-20 lg:h-40 focus:border-orange-500 outline-none transition-all resize-none font-bold placeholder:text-stone-800 uppercase tracking-widest shadow-inner rounded"
                     placeholder="DESCRIBE PARAMETERS..."
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-1 gap-2">
                   {tab === 'generate' && (
-                    <div className="flex gap-1.5 bg-stone-950 p-1.5 rounded-lg border border-stone-800">
+                    <div className="flex gap-1 bg-stone-950 p-1 rounded border border-stone-800">
                       {(['1K', '2K', '4K'] as const).map(s => (
-                        <button key={s} onClick={() => setImgSize(s)} className={`flex-1 py-2 text-[8px] lg:text-[10px] font-black transition-all rounded-md border ${imgSize === s ? 'bg-white border-white text-stone-950 shadow-lg' : 'bg-transparent border-transparent text-stone-600 hover:text-stone-400'}`}>{s}</button>
+                        <button key={s} onClick={() => setImgSize(s)} className={`flex-1 py-1.5 text-[7px] lg:text-[10px] font-black transition-all rounded border ${imgSize === s ? 'bg-white border-white text-stone-950 shadow-lg' : 'bg-transparent border-transparent text-stone-600 hover:text-stone-400'}`}>{s}</button>
                       ))}
                     </div>
                   )}
 
                   {tab === 'video' && (
-                    <div className="flex gap-1.5 bg-stone-950 p-1.5 rounded-lg border border-stone-800">
+                    <div className="flex gap-1 bg-stone-950 p-1 rounded border border-stone-800">
                       {(['16:9', '9:16'] as const).map(a => (
-                        <button key={a} onClick={() => setAspect(a)} className={`flex-1 py-2 text-[8px] lg:text-[10px] font-black transition-all rounded-md border ${aspect === a ? 'bg-white border-white text-stone-950 shadow-lg' : 'bg-transparent border-transparent text-stone-600 hover:text-stone-400'}`}>{a}</button>
+                        <button key={a} onClick={() => setAspect(a)} className={`flex-1 py-1.5 text-[7px] lg:text-[10px] font-black transition-all rounded border ${aspect === a ? 'bg-white border-white text-stone-950 shadow-lg' : 'bg-transparent border-transparent text-stone-600 hover:text-stone-400'}`}>{a}</button>
                       ))}
                     </div>
                   )}
@@ -202,12 +218,12 @@ const CreativeSuite: React.FC<Props> = ({ onBack, setAvatar }) => {
              <button 
                 onClick={processAI}
                 disabled={loading}
-                className={`w-full py-4 lg:py-8 font-black uppercase tracking-[0.3em] lg:tracking-[0.5em] transition-all text-[10px] lg:text-[12px] rounded-2xl lg:rounded-3xl shadow-2xl active:translate-y-1 ${loading ? 'bg-stone-900 text-stone-700 cursor-not-allowed border-stone-800' : 'bg-orange-600 hover:bg-orange-500 text-white border-b-4 lg:border-b-[8px] border-orange-800'}`}
+                className={`w-full py-3 lg:py-8 font-black uppercase tracking-widest transition-all text-[9px] lg:text-[12px] rounded-xl lg:rounded-3xl shadow-2xl active:translate-y-1 ${loading ? 'bg-stone-900 text-stone-700 cursor-not-allowed border-stone-800' : 'bg-orange-600 hover:bg-orange-500 text-white border-b-4 lg:border-b-[8px] border-orange-800'}`}
               >
                 {loading ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-3 h-3 border-2 border-stone-500 border-t-white rounded-full animate-spin"></div>
-                    <span className="text-[7px] lg:text-[9px] animate-pulse tracking-[0.2em]">{status}</span>
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-2 h-2 border border-stone-500 border-t-white rounded-full animate-spin"></div>
+                    <span className="text-[6px] lg:text-[9px] animate-pulse">{status}</span>
                   </div>
                 ) : `INITIATE_SYNTHESIS`}
               </button>
@@ -215,12 +231,12 @@ const CreativeSuite: React.FC<Props> = ({ onBack, setAvatar }) => {
         </div>
 
         {/* RIGHT VIEWPORT PANEL */}
-        <div className="lg:col-span-8 flex flex-col gap-4 lg:gap-6">
-           <div className="tactical-panel flex-1 bg-stone-950/90 border border-stone-800 rounded-2xl lg:rounded-[3rem] p-3 lg:p-4 flex flex-col shadow-2xl relative overflow-hidden min-h-[360px] lg:min-h-[720px]">
+        <div className="lg:col-span-8 flex flex-col gap-3 lg:gap-6">
+           <div className="tactical-panel flex-1 bg-stone-950/90 border border-stone-800 rounded-2xl lg:rounded-[3rem] p-2 lg:p-4 flex flex-col shadow-2xl relative overflow-hidden min-h-[300px] lg:min-h-[720px]">
               {result ? (
                 <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-700">
                    <div className="flex-1 bg-black rounded-xl lg:rounded-[2.5rem] overflow-hidden shadow-inner border border-white/5 relative group">
-                      <div className="absolute top-4 left-4 lg:top-10 lg:left-10 text-[7px] lg:text-[10px] font-black text-white/30 tracking-[0.4em] lg:tracking-[0.6em] uppercase">VIEWPORT_OUTPUT</div>
+                      <div className="absolute top-3 left-3 lg:top-10 lg:left-10 text-[6px] lg:text-[10px] font-black text-white/30 tracking-widest uppercase">VIEWPORT_OUTPUT</div>
                       {tab === 'video' ? (
                         <video src={result} controls autoPlay loop className="w-full h-full object-contain" />
                       ) : (
@@ -228,43 +244,48 @@ const CreativeSuite: React.FC<Props> = ({ onBack, setAvatar }) => {
                       )}
                    </div>
                    
-                   <div className="p-4 lg:p-8 flex gap-3 lg:gap-6 mt-2 lg:mt-4">
+                   <div className="p-3 lg:p-8 flex gap-2 lg:gap-6 mt-2">
                       {tab !== 'video' && (
                         <button 
                           onClick={() => { setAvatar(result); onBack(); }}
-                          className="flex-1 bg-white hover:bg-orange-600 text-stone-950 hover:text-white font-black py-4 lg:py-8 rounded-xl lg:rounded-[2rem] text-[10px] lg:text-[14px] uppercase tracking-[0.4em] lg:tracking-[0.8em] transition-all shadow-2xl"
+                          className="flex-1 bg-white hover:bg-orange-600 text-stone-950 hover:text-white font-black py-3 lg:py-8 rounded-lg lg:rounded-[2rem] text-[9px] lg:text-[14px] uppercase tracking-widest transition-all shadow-2xl"
                         >
                           DEPLOY_OPERATOR
                         </button>
                       )}
                       <button 
                         onClick={() => setResult(null)}
-                        className="px-6 lg:px-12 bg-stone-900 text-stone-500 hover:text-white rounded-xl lg:rounded-[2rem] font-black text-[9px] lg:text-[11px] uppercase tracking-[0.2em] lg:tracking-[0.4em] transition-all border border-stone-800"
+                        className="px-4 lg:px-12 bg-stone-900 text-stone-500 hover:text-white rounded-lg lg:rounded-[2rem] font-black text-[8px] lg:text-[11px] uppercase tracking-widest transition-all border border-stone-800"
                       >
                         RESET
                       </button>
                    </div>
                 </div>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center space-y-6 lg:space-y-10 group">
+                <div className="h-full flex flex-col items-center justify-center space-y-4 lg:space-y-10 group">
                    <div className="relative">
-                      <div className="w-24 h-24 lg:w-48 lg:h-48 border-4 border-stone-900 rounded-full flex items-center justify-center opacity-40 group-hover:rotate-[360deg] transition-all duration-700">
-                         <div className="text-4xl lg:text-8xl grayscale contrast-50 opacity-50 group-hover:opacity-100 transition-all">⚙️</div>
+                      <div className="w-16 h-16 lg:w-48 lg:h-48 border-2 lg:border-4 border-stone-900 rounded-full flex items-center justify-center opacity-40 group-hover:rotate-[360deg] transition-all duration-1000">
+                         <div className="text-2xl lg:text-8xl grayscale opacity-50 group-hover:opacity-100 transition-all">⚙️</div>
                       </div>
-                      <div className="absolute inset-0 border-t-4 border-orange-500/20 rounded-full animate-spin"></div>
+                      <div className="absolute inset-0 border-t-2 border-orange-500/20 rounded-full animate-spin"></div>
                    </div>
-                   <p className="font-black uppercase tracking-[0.6em] lg:tracking-[1em] text-[10px] lg:text-[14px] text-stone-700">AWAITING_LINK</p>
+                   <p className="font-black uppercase tracking-[0.4em] lg:tracking-[1em] text-[8px] lg:text-[14px] text-stone-700">AWAITING_LINK</p>
                    
                    {loading && thoughts.length > 0 && (
-                     <div className="max-w-xs lg:max-w-md w-full p-4 lg:p-8 bg-black/60 rounded-xl lg:rounded-3xl border border-stone-900 animate-in slide-in-from-bottom-10 duration-700 shadow-2xl">
-                        <div className="text-[7px] lg:text-[10px] font-black text-orange-500/50 uppercase tracking-[0.4em] lg:tracking-[0.5em] mb-4 lg:mb-6 pb-2 border-b border-stone-900">Analytics</div>
-                        <div className="space-y-2 lg:space-y-3">
+                     <div className="max-w-xs lg:max-w-md w-full p-3 lg:p-8 bg-black/60 rounded-xl lg:rounded-3xl border border-stone-900 animate-in slide-in-from-bottom-6 duration-700 shadow-2xl">
+                        <div className="text-[6px] lg:text-[10px] font-black text-orange-500/50 uppercase tracking-widest mb-2 lg:mb-6 pb-2 border-b border-stone-900">Analytics</div>
+                        <div className="space-y-1.5 lg:space-y-3">
                            {thoughts.map((t, i) => (
-                             <div key={i} className="text-[7px] lg:text-[10px] text-stone-600 uppercase font-black tracking-widest animate-in fade-in slide-in-from-left-4 duration-300">
+                             <div key={i} className="text-[6px] lg:text-[10px] text-stone-600 uppercase font-black tracking-widest animate-in fade-in slide-in-from-left-4 duration-300">
                                 <span className="text-orange-500 mr-2 lg:mr-3 opacity-30">▶</span> {t}
                              </div>
                            ))}
                         </div>
+                     </div>
+                   )}
+                   {error && (
+                     <div className="p-3 bg-red-600/10 border border-red-600/30 rounded text-red-500 text-[8px] lg:text-xs font-black uppercase tracking-widest animate-bounce">
+                        {error}
                      </div>
                    )}
                 </div>

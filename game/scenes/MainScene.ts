@@ -1,4 +1,3 @@
-
 import Phaser from 'phaser';
 import Peer, { DataConnection } from 'peerjs';
 import { GameMode, CharacterClass, MissionConfig, MPConfig } from '../../App';
@@ -25,7 +24,7 @@ export interface WeaponConfig {
 export const WEAPONS_CONFIG: Record<string, WeaponConfig> = {
   pistol: { name: 'M9 SIDEARM', fireRate: 350, damage: 15, recoil: 150, bullets: 1, spread: 0.02, projectileScale: 0.8, projectileTint: 0xffcc00, maxAmmo: 999, isInfinite: true, key: 'pistol', icon: '🔫', type: 'kinetic', category: 'pistol', speed: 2000 },
   smg: { name: 'MP5 TACTICAL', fireRate: 100, damage: 10, recoil: 80, bullets: 1, spread: 0.12, projectileScale: 0.6, projectileTint: 0xffaa00, maxAmmo: 45, key: 'smg', icon: '⚔️', type: 'kinetic', category: 'rifle', speed: 2200 },
-  shotgun: { name: '870 BREACHER', fireRate: 900, damage: 20, recoil: 2000, bullets: 8, spread: 0.9, projectileScale: 0.9, projectileTint: 0xff4444, maxAmmo: 8, key: 'shotgun', icon: '🔥', type: 'kinetic', category: 'heavy', speed: 1800 },
+  shotgun: { name: '870 BREACHER', fireRate: 900, damage: 20, recoil: 2200, bullets: 8, spread: 0.9, projectileScale: 0.9, projectileTint: 0xff4444, maxAmmo: 8, key: 'shotgun', icon: '🔥', type: 'kinetic', category: 'heavy', speed: 1800 },
   launcher: { name: 'M32 GL', fireRate: 1500, damage: 80, recoil: 1200, bullets: 1, spread: 0, projectileScale: 2.5, projectileTint: 0xf97316, maxAmmo: 6, key: 'launcher', icon: '🚀', type: 'explosive', category: 'heavy', speed: 1200 },
   railgun: { name: 'XM-25 RAIL', fireRate: 2000, damage: 150, recoil: 1500, bullets: 1, spread: 0, projectileScale: 4.0, projectileTint: 0x00ffff, maxAmmo: 3, key: 'railgun', icon: '⚡', type: 'energy', category: 'heavy', speed: 4000 },
   plasma: { name: 'X-ION REPEATER', fireRate: 200, damage: 30, recoil: 200, bullets: 1, spread: 0.05, projectileScale: 1.8, projectileTint: 0xff00ff, maxAmmo: 20, key: 'plasma', icon: '🔮', type: 'energy', category: 'rifle', speed: 1600 }
@@ -78,6 +77,7 @@ export class MainScene extends Phaser.Scene {
   private points = 0;
   private ammo = 0;
   private isRespawning = false;
+  private isMissionOver = false;
   private abilityCooldown = 0;
   private mission?: MissionConfig;
   private mpConfig?: MPConfig;
@@ -126,20 +126,22 @@ export class MainScene extends Phaser.Scene {
     this.teamScores = { alpha: 0, bravo: 0 };
     this.kills = 0;
     this.points = 0;
+    this.isMissionOver = false;
   }
 
   preload() {
-    // Audio Assets
     this.load.audio('sfx_pistol', 'https://labs.phaser.io/assets/audio/SoundEffects/pistol.wav');
     this.load.audio('sfx_shotgun', 'https://labs.phaser.io/assets/audio/SoundEffects/shotgun.wav');
     this.load.audio('sfx_hit_flesh', 'https://labs.phaser.io/assets/audio/SoundEffects/squit.wav');
     this.load.audio('sfx_powerup', 'https://labs.phaser.io/assets/audio/SoundEffects/p-chi.wav');
     this.load.audio('sfx_boost', 'https://labs.phaser.io/assets/audio/SoundEffects/thrust.wav');
     this.load.audio('sfx_death_human', 'https://labs.phaser.io/assets/audio/SoundEffects/alien_death.wav');
+    this.load.audio('sfx_victory', 'https://labs.phaser.io/assets/audio/SoundEffects/magic_spell.mp3');
     this.load.audio('music_loop', 'https://labs.phaser.io/assets/audio/Tech%20Demo/07-S_S-Ambient.mp3');
   }
 
   create() {
+    this.physics.world.setBounds(0, 0, 2000, 2000);
     this.setupTextures();
     this.add.grid(1000, 1000, 2000, 2000, 256, 256, 0x0a0a0a, 1, 0x1a1a1a, 0.5).setDepth(-10);
     this.createArena();
@@ -294,12 +296,8 @@ export class MainScene extends Phaser.Scene {
   private setupPhysics() {
     this.physics.add.collider(this.player, this.walls);
     this.physics.add.collider(this.aiBots, this.walls);
-    
-    // Player to Bots collision
     this.physics.add.collider(this.player, this.aiBots);
-    // Player to Other Players collision
     this.physics.add.collider(this.player, this.otherPlayersGroup);
-    // Bots to Bots collision
     this.physics.add.collider(this.aiBots, this.aiBots);
 
     this.physics.add.collider(this.bullets, this.walls, (b: any) => { 
@@ -307,7 +305,6 @@ export class MainScene extends Phaser.Scene {
       b.setActive(false).setVisible(false).body.stop(); 
     });
     
-    // Allow bullets to destroy weapon crates and luck boxes
     this.physics.add.overlap(this.bullets, this.weaponBoxes, (bullet: any, box: any) => {
       this.activateWeaponBox(box);
       bullet.setActive(false).setVisible(false).body.stop();
@@ -338,6 +335,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
+    if (this.isMissionOver) return;
+
     if (!this.isRespawning) {
       this.handleInput();
       this.handleCombat(time);
@@ -363,6 +362,7 @@ export class MainScene extends Phaser.Scene {
     this.playerShadow.setPosition(this.player.x + 6, this.player.y + 6);
     this.updateAIBots(time);
     this.updateHUD();
+    this.checkWinCondition();
     
     this.playerLabel.setPosition(this.player.x, this.player.y - 60);
     this.weaponLabel.setPosition(this.player.x, this.player.y - 75);
@@ -371,8 +371,27 @@ export class MainScene extends Phaser.Scene {
     if (this.shield < this.maxShield) this.shield += 0.08 * (delta / 16.6);
   }
 
+  private checkWinCondition() {
+    if (this.mission && !this.isMissionOver) {
+      if (this.kills >= this.mission.targetKills) {
+        this.isMissionOver = true;
+        this.player.body.stop();
+        this.player.body.enable = false;
+        this.playSound('sfx_victory', 0.8, false);
+        window.dispatchEvent(new CustomEvent('MISSION_COMPLETE', { detail: { kills: this.kills, points: this.points } }));
+      }
+    }
+    
+    if (this.mpConfig && this.isHost && !this.isMissionOver) {
+        if (this.teamScores.alpha >= this.mpConfig.scoreLimit || this.teamScores.bravo >= this.mpConfig.scoreLimit) {
+            this.isMissionOver = true;
+            this.playSound('sfx_victory', 0.8, false);
+            window.dispatchEvent(new CustomEvent('MISSION_COMPLETE', { detail: { winner: this.teamScores.alpha >= this.mpConfig.scoreLimit ? 'ALPHA' : 'BRAVO', alpha: this.teamScores.alpha, bravo: this.teamScores.bravo } }));
+        }
+    }
+  }
+
   private resolveUnitOverlaps() {
-    // This method can remain as a fallback for soft-pushing, but colliders handle the hard blocking
     const units = [this.player, ...this.aiBots.getChildren(), ...this.otherPlayers.values()];
     const minDist = 44; 
 
@@ -429,7 +448,12 @@ export class MainScene extends Phaser.Scene {
 
   private handleCombat(time: number) {
     if (this.virtualInput.isFiring && time > this.lastFired) {
-      if (this.ammo <= 0 && !this.currentWeapon.isInfinite) return;
+      if (this.ammo <= 0 && !this.currentWeapon.isInfinite) {
+        // AUTO FALLBACK SYSTEM
+        this.swapWeapon('pistol');
+        this.showFloatingText(this.player.x, this.player.y - 100, "AMMO_DEPLETED: CYCLING_FALLBACK", "#ff0000");
+        return;
+      }
       
       const angle = this.virtualInput.aimAngle !== null ? this.virtualInput.aimAngle : this.player.rotation;
       this.muzzleEmitter.emitParticleAt(this.player.x + Math.cos(angle) * 45, this.player.y + Math.sin(angle) * 45, 8);
@@ -439,11 +463,32 @@ export class MainScene extends Phaser.Scene {
         this.spawnBullet(this.player.x, this.player.y, angle + spread, this.currentWeapon.key, 'player', this.playerTeam);
       }
 
+      // PHYSICAL RECOIL SYSTEM
+      const recoilForce = this.currentWeapon.recoil;
+      if (recoilForce > 0) {
+        const recoilAngle = angle + Math.PI;
+        const pushbackMagnitude = recoilForce * 0.45;
+        this.physics.velocityFromRotation(recoilAngle, pushbackMagnitude, this.player.body.velocity);
+      }
+
       if (this.roomId) this.connections.forEach(c => c.send({ type: 'fire', x: this.player.x, y: this.player.y, angle, weaponKey: this.currentWeapon.key, team: this.playerTeam }));
       this.playSound(this.currentWeapon.category === 'pistol' ? 'sfx_pistol' : 'sfx_shotgun', 0.4);
       this.lastFired = time + this.currentWeapon.fireRate;
-      if (!this.currentWeapon.isInfinite) this.ammo--;
-      this.cameras.main.shake(100, 0.005);
+      
+      if (!this.currentWeapon.isInfinite) {
+        this.ammo--;
+        // Check for immediate fallback if that was the last bullet
+        if (this.ammo <= 0) {
+          this.time.delayedCall(100, () => {
+            if (this.currentWeapon.key !== 'pistol') {
+               this.swapWeapon('pistol');
+               this.showFloatingText(this.player.x, this.player.y - 100, "WEAPON_EXHAUSTED", "#ff4444");
+            }
+          });
+        }
+      }
+      
+      this.cameras.main.shake(100, 0.004 * (recoilForce / 1000));
     }
   }
 
@@ -460,6 +505,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private spawnAIBot(team: 'alpha' | 'bravo') {
+    if (this.isMissionOver) return;
     const x = Phaser.Math.Between(100, 1900);
     const y = Phaser.Math.Between(100, 1900);
     const bot = this.aiBots.create(x, y, 'hum_striker_pistol');
@@ -476,6 +522,10 @@ export class MainScene extends Phaser.Scene {
   }
 
   private updateAIBots(time: number) {
+    if (this.isMissionOver) {
+        this.aiBots.getChildren().forEach((bot: any) => bot.body.stop());
+        return;
+    }
     this.aiBots.getChildren().forEach((bot: any) => {
       const team = bot.getData('team');
       let nearestTarget: any = null;
@@ -504,7 +554,6 @@ export class MainScene extends Phaser.Scene {
         let desiredWeaponKey = 'pistol';
         if (minDist < 200) desiredWeaponKey = 'shotgun';
         else if (minDist < 500) desiredWeaponKey = 'smg';
-        else if (Math.random() > 0.98) desiredWeaponKey = 'plasma'; 
 
         if (bot.getData('weaponKey') !== desiredWeaponKey) {
             bot.setData('weaponKey', desiredWeaponKey);
@@ -538,6 +587,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private updateHardpoint(time: number) {
+    if (this.isMissionOver) return;
     if (time % 1000 < 20) {
       let alphaIn = this.physics.overlap(this.hardpointZone, this.player) && this.playerTeam === 'alpha' ? 1 : 0;
       let bravoIn = this.physics.overlap(this.hardpointZone, this.player) && this.playerTeam === 'bravo' ? 1 : 0;
@@ -571,7 +621,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private takeDamage(dmg: number) {
-    if (this.invulnerabilityTimer > 0 || this.safeZoneTimer > 0 || this.isRespawning) return;
+    if (this.invulnerabilityTimer > 0 || this.safeZoneTimer > 0 || this.isRespawning || this.isMissionOver) return;
     
     const difficultyDamageScale = 0.7 + (this.difficultyModifier * 0.3);
     const scaledDmg = dmg * difficultyDamageScale;
@@ -607,6 +657,7 @@ export class MainScene extends Phaser.Scene {
           this.explosionEmitter.emitParticleAt(this.player.x, this.player.y, 15);
         },
         onComplete: () => {
+          if (this.isMissionOver) return;
           this.player.setVisible(false);
           this.time.delayedCall(1000, () => {
             this.health = this.maxHealth;
@@ -633,7 +684,7 @@ export class MainScene extends Phaser.Scene {
         this.points += 100;
       }
       
-      if (this.isHost) {
+      if (this.isHost && !this.isMissionOver) {
         if (this.mpConfig?.mode === 'TDM' || this.mpConfig?.mode === 'FFA') {
           this.teamScores[sourceTeam]++;
           this.connections.forEach(c => c.send({ type: 'score_update', scores: this.teamScores }));
@@ -674,6 +725,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private spawnLuckBox() {
+    if (this.isMissionOver) return;
     const x = Phaser.Math.Between(300, 1700);
     const y = Phaser.Math.Between(300, 1700);
     const box = this.luckBoxes.create(x, y, 'luck_box');
@@ -681,6 +733,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private spawnWeaponBox() {
+    if (this.isMissionOver) return;
     const x = Phaser.Math.Between(300, 1700);
     const y = Phaser.Math.Between(300, 1700);
     const box = this.weaponBoxes.create(x, y, 'weapon_box');
@@ -789,9 +842,16 @@ export class MainScene extends Phaser.Scene {
       isInfinite: this.currentWeapon.isInfinite, 
       abilityCooldown: this.abilityCooldown, 
       kills: this.kills, 
+      targetKills: this.mission?.targetKills || 0,
       points: this.points,
       teamScores: this.teamScores,
-      mode: this.mpConfig?.mode || 'MISSION'
+      mode: this.mpConfig?.mode || 'MISSION',
+      isOver: this.isMissionOver,
+      playerPos: { x: this.player.x, y: this.player.y, rotation: this.player.rotation },
+      entities: [
+        ...this.aiBots.getChildren().map((b: any) => ({ x: b.x, y: b.y, team: b.getData('team'), type: 'bot' })),
+        ...Array.from(this.otherPlayers.values()).map((p: any) => ({ x: p.x, y: p.y, team: p.getData('team'), type: 'player' }))
+      ]
     };
   }
 }
