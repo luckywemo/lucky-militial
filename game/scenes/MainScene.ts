@@ -36,7 +36,7 @@ export class MainScene extends Phaser.Scene {
   public declare cameras: Phaser.Cameras.Scene2D.CameraManager;
   public declare time: Phaser.Time.Clock;
   public declare cache: Phaser.Cache.CacheManager;
-  public declare sound: Phaser.Sound.BaseSoundManager;
+
   public declare make: Phaser.GameObjects.GameObjectCreator;
   public declare tweens: Phaser.Tweens.TweenManager;
   public declare load: Phaser.Loader.LoaderPlugin;
@@ -130,14 +130,14 @@ export class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.audio('sfx_pistol', 'https://labs.phaser.io/assets/audio/SoundEffects/pistol.wav');
-    this.load.audio('sfx_shotgun', 'https://labs.phaser.io/assets/audio/SoundEffects/shotgun.wav');
-    this.load.audio('sfx_hit_flesh', 'https://labs.phaser.io/assets/audio/SoundEffects/squit.wav');
-    this.load.audio('sfx_powerup', 'https://labs.phaser.io/assets/audio/SoundEffects/p-chi.wav');
-    this.load.audio('sfx_boost', 'https://labs.phaser.io/assets/audio/SoundEffects/thrust.wav');
-    this.load.audio('sfx_death_human', 'https://labs.phaser.io/assets/audio/SoundEffects/alien_death.wav');
-    this.load.audio('sfx_victory', 'https://labs.phaser.io/assets/audio/SoundEffects/magic_spell.mp3');
-    this.load.audio('music_loop', 'https://labs.phaser.io/assets/audio/Tech%20Demo/07-S_S-Ambient.mp3');
+    this.load.audio('sfx_pistol', '/assets/audio/pistol.wav');
+    this.load.audio('sfx_shotgun', '/assets/audio/shotgun.wav');
+    this.load.audio('sfx_hit_flesh', '/assets/audio/squit.wav');
+    this.load.audio('sfx_powerup', '/assets/audio/p-chi.wav');
+    this.load.audio('sfx_boost', '/assets/audio/thrust.mp3');
+    this.load.audio('sfx_death_human', '/assets/audio/alien-death.flac');
+    this.load.audio('sfx_victory', '/assets/audio/level-complete.wav');
+    this.load.audio('music_loop', '/assets/audio/bg-music.wav');
   }
 
   create() {
