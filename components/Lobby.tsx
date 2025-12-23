@@ -284,7 +284,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
         </div>
 
         {/* CENTER CONSOLE */}
-        <div className="lg:col-span-6 tactical-panel bg-stone-950/90 border border-stone-800 rounded-2xl relative overflow-hidden flex flex-col min-h-[300px] lg:min-h-[720px] shadow-2xl">
+        <div className="lg:col-span-6 tactical-panel bg-stone-950/90 border border-stone-800 rounded-2xl relative flex flex-col lg:min-h-[720px] shadow-2xl">
            <div className="p-3 lg:p-8 border-b border-stone-800 flex justify-between items-center bg-stone-900/30 backdrop-blur-xl">
               <h2 className="text-xs lg:text-3xl font-black font-stencil tracking-widest text-white uppercase italic">{tab}</h2>
               <div className="flex items-center gap-1 lg:gap-3 bg-black/60 px-2 lg:px-4 py-1 lg:py-2 rounded-full border border-stone-800">
@@ -293,7 +293,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
               </div>
            </div>
 
-           <div className="flex-1 overflow-y-auto p-3 lg:p-8 scrollbar-hide">
+           <div className="lg:flex-1 lg:overflow-y-auto p-3 lg:p-8">
               {tab === 'missions' && (
                 <div className="flex flex-col gap-3 lg:gap-8 h-full">
                    <div className="flex-1 relative bg-black/60 rounded-xl border border-stone-800 overflow-hidden min-h-[200px] lg:min-h-[340px] shadow-inner p-2">
