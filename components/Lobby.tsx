@@ -83,6 +83,33 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
     squadRef.current = squad;
   }, [squad]);
 
+  // Background music for lobby
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
+  
+  useEffect(() => {
+    if (settings.audioEnabled) {
+      if (!bgMusicRef.current) {
+        bgMusicRef.current = new Audio('/assets/audio/bg-music.wav');
+        bgMusicRef.current.loop = true;
+        bgMusicRef.current.volume = 0.08; // Lower volume for lobby ambiance
+      }
+      bgMusicRef.current.play().catch(() => {
+        // Autoplay blocked - will play on first user interaction
+      });
+    } else {
+      if (bgMusicRef.current) {
+        bgMusicRef.current.pause();
+      }
+    }
+    
+    return () => {
+      if (bgMusicRef.current) {
+        bgMusicRef.current.pause();
+        bgMusicRef.current = null;
+      }
+    };
+  }, [settings.audioEnabled]);
+
   useEffect(() => {
     return () => { if (peerRef.current) peerRef.current.destroy(); };
   }, []);
