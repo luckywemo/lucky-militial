@@ -130,26 +130,14 @@ export class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.audio('sfx_pistol', '/assets/audio/pistol.wav');
-    this.load.audio('sfx_shotgun', '/assets/audio/shotgun.wav');
-    this.load.audio('sfx_hit_flesh', '/assets/audio/squit.wav');
-    this.load.audio('sfx_powerup', '/assets/audio/p-chi.wav');
-    this.load.audio('sfx_boost', '/assets/audio/thrust.mp3');
-    this.load.audio('sfx_death_human', '/assets/audio/alien-death.flac');
-    this.load.audio('sfx_victory', '/assets/audio/level-complete.wav');
-    this.load.audio('music_loop', '/assets/audio/bg-music.wav');
-    
-    // Play immediately when loaded, don't wait for other assets
-    this.load.once('filecomplete-audio-music_loop', () => {
-        // Safety check: ensure scene is active and audio system is ready
-        if (this.sys && this.sys.isActive() && this.audioEnabled && !this.bgMusic) {
-            this.bgMusic = this.sound.add('music_loop', { loop: true, volume: 0.1 });
-            this.bgMusic.play();
-        }
-    });
+    // Audio is now loaded on-demand in create() to prevent blocking
+    // This allows the scene to render immediately
   }
 
   create() {
+    // Notify React that scene is starting to render
+    window.dispatchEvent(new CustomEvent('SCENE_READY'));
+    
     this.physics.world.setBounds(0, 0, 2000, 2000);
     this.setupTextures();
     this.add.grid(1000, 1000, 2000, 2000, 256, 256, 0x0a0a0a, 1, 0x1a1a1a, 0.5).setDepth(-10);
@@ -178,7 +166,9 @@ export class MainScene extends Phaser.Scene {
     this.setupUIElements();
     this.setupEmitters();
     this.setupPhysics();
-    this.initAudio();
+    
+    // Load audio in background (non-blocking)
+    this.loadAudioAsync();
 
     if (this.roomId) this.initMultiplayer();
 
@@ -197,6 +187,34 @@ export class MainScene extends Phaser.Scene {
     this.time.addEvent({ delay: 15000, callback: () => this.spawnWeaponBox(), loop: true });
     
     window.addEventListener('weapon_swap', ((e: CustomEvent) => this.swapWeapon(e.detail.key)) as any);
+  }
+
+  private loadAudioAsync() {
+    if (!this.audioEnabled) return;
+    
+    // Load audio files in background without blocking
+    const audioFiles = [
+      { key: 'sfx_pistol', path: '/assets/audio/pistol.wav' },
+      { key: 'sfx_shotgun', path: '/assets/audio/shotgun.wav' },
+      { key: 'sfx_hit_flesh', path: '/assets/audio/squit.wav' },
+      { key: 'sfx_powerup', path: '/assets/audio/p-chi.wav' },
+      { key: 'sfx_boost', path: '/assets/audio/thrust.mp3' },
+      { key: 'sfx_death_human', path: '/assets/audio/alien-death.flac' },
+      { key: 'sfx_victory', path: '/assets/audio/level-complete.wav' },
+      { key: 'music_loop', path: '/assets/audio/bg-music.wav' },
+    ];
+
+    audioFiles.forEach(({ key, path }) => {
+      if (!this.cache.audio.exists(key)) {
+        this.load.audio(key, path);
+      }
+    });
+
+    this.load.once('complete', () => {
+      this.initAudio();
+    });
+
+    this.load.start();
   }
 
   private initMultiplayer() {

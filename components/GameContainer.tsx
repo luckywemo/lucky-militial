@@ -229,6 +229,9 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
     hp: 100, maxHp: 100, shield: 100, ammo: 0, maxAmmo: 0, weaponKey: 'pistol', weaponName: 'SIDEARM', isInfinite: true, abilityCooldown: 0, kills: 0, targetKills: 0, points: 0, teamScores: { alpha: 0, bravo: 0 }, mode: 'MISSION', isOver: false, playerPos: { x: 1000, y: 1000, rotation: 0 }, entities: []
   });
   const [victoryData, setVictoryData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState('INITIALIZING_SYSTEMS...');
   const keysPressed = useRef(new Set<string>());
 
   const updateVirtualInput = useCallback((data: any) => {
@@ -255,8 +258,39 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
   }, [updateVirtualInput]);
 
   useEffect(() => {
+    let progressInterval: ReturnType<typeof setInterval>;
+    
+    const handleSceneReady = () => {
+      if (progressInterval) clearInterval(progressInterval);
+      setLoadingProgress(100);
+      setLoadingMessage('SYSTEMS_ONLINE');
+      setTimeout(() => setIsLoading(false), 300);
+    };
+
+    // Listen for Phaser scene ready event
+    window.addEventListener('SCENE_READY', handleSceneReady);
+
     if (containerRef.current && !gameRef.current) {
+      // Simulate loading progress for better UX
+      const progressSteps = [
+        { progress: 10, message: 'LOADING_CORE_SYSTEMS...' },
+        { progress: 30, message: 'INITIALIZING_PHYSICS_ENGINE...' },
+        { progress: 50, message: 'GENERATING_TACTICAL_MAP...' },
+        { progress: 70, message: 'SPAWNING_UNITS...' },
+        { progress: 90, message: 'DEPLOYING_OPERATOR...' },
+      ];
+      
+      let stepIndex = 0;
+      progressInterval = setInterval(() => {
+        if (stepIndex < progressSteps.length) {
+          setLoadingProgress(progressSteps[stepIndex].progress);
+          setLoadingMessage(progressSteps[stepIndex].message);
+          stepIndex++;
+        }
+      }, 200);
+
       gameRef.current = createGame(containerRef.current, playerName, avatar, roomId, isHost, gameMode, characterClass, mission, mpConfig, squad);
+
       const scene = gameRef.current.scene.getScene('MainScene') as any;
       if (scene) {
         scene.audioEnabled = audioEnabled;
@@ -317,12 +351,14 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
     window.addEventListener('mouseup', handleMouseUp);
 
     return () => {
+      window.removeEventListener('SCENE_READY', handleSceneReady);
       window.removeEventListener('MISSION_COMPLETE', onComplete);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
+      if (progressInterval) clearInterval(progressInterval);
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
@@ -345,6 +381,56 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
   return (
     <div className="relative w-full h-full bg-black overflow-hidden font-mono text-stone-100 touch-none flex flex-col">
       <div ref={containerRef} className="flex-1 relative cursor-crosshair" />
+      
+      {/* Loading Screen */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-[#050505] z-[6000] flex flex-col items-center justify-center p-8">
+          <div className="w-full max-w-md space-y-8">
+            {/* Logo */}
+            <div className="flex items-center justify-center gap-4 mb-12">
+              <div className="w-16 h-16 bg-orange-600 rounded-lg flex items-center justify-center animate-pulse shadow-[0_0_40px_rgba(249,115,22,0.5)]">
+                <span className="text-3xl">🎖️</span>
+              </div>
+              <div>
+                <div className="text-orange-500 text-sm font-black tracking-[0.5em] uppercase">LUCKY_MILITIA</div>
+                <div className="text-stone-600 text-[10px] font-bold tracking-widest">TACTICAL_DEPLOYMENT</div>
+              </div>
+            </div>
+            
+            {/* Loading Message */}
+            <div className="text-center">
+              <div className="text-orange-500 text-xs font-black tracking-widest animate-pulse mb-4">
+                {loadingMessage}
+              </div>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="space-y-2">
+              <div className="h-2 bg-stone-900 rounded-full overflow-hidden border border-stone-800">
+                <div 
+                  className="h-full bg-gradient-to-r from-orange-600 to-orange-400 transition-all duration-300 ease-out shadow-[0_0_15px_rgba(249,115,22,0.5)]"
+                  style={{ width: `${loadingProgress}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] font-black text-stone-600 uppercase tracking-widest">
+                <span>PROGRESS</span>
+                <span>{loadingProgress}%</span>
+              </div>
+            </div>
+            
+            {/* Animated Dots */}
+            <div className="flex justify-center gap-2 pt-8">
+              {[0, 1, 2].map((i) => (
+                <div 
+                  key={i}
+                  className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
+                  style={{ animationDelay: `${i * 0.15}s` }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       
       {victoryData && (
         <VictoryOverlay 
