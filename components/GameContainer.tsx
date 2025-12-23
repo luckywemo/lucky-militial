@@ -47,11 +47,11 @@ const HUDBar: React.FC<{ value: number, max: number, color: string, label: strin
 
 const Minimap: React.FC<{ playerPos: {x: number, y: number, rotation: number}, entities: any[], playerTeam: 'alpha' | 'bravo' }> = ({ playerPos, entities, playerTeam }) => {
   const mapSize = 2000;
-  const uiSize = 120; // Size on screen
+  const uiSize = typeof window !== 'undefined' && window.innerWidth < 1024 ? 80 : 120;
   const scale = uiSize / mapSize;
 
   return (
-    <div className="relative w-[120px] h-[120px] bg-black/80 border-2 border-stone-800 rounded-full overflow-hidden shadow-2xl backdrop-blur-md pointer-events-none group">
+    <div className={`relative bg-black/80 border-2 border-stone-800 rounded-full overflow-hidden shadow-2xl backdrop-blur-md pointer-events-none group`} style={{ width: uiSize, height: uiSize }}>
       {/* Grid background */}
       <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)', backgroundSize: '20px 20px' }}></div>
       
@@ -81,55 +81,55 @@ const Minimap: React.FC<{ playerPos: {x: number, y: number, rotation: number}, e
 
       {/* Player Self */}
       <div 
-        className="absolute w-2 h-2 bg-green-400 shadow-[0_0_10px_#4ade80] rounded-sm"
+        className="absolute w-1.5 h-1.5 lg:w-2 lg:h-2 bg-green-400 shadow-[0_0_10px_#4ade80] rounded-sm"
         style={{ 
           left: `${playerPos.x * scale}px`, 
           top: `${playerPos.y * scale}px`,
           transform: `translate(-50%, -50%) rotate(${playerPos.rotation}rad)`
         }}
       >
-        <div className="absolute top-[-4px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-b-[5px] border-b-green-400"></div>
+        <div className="absolute top-[-3px] lg:top-[-4px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[2px] lg:border-l-[3px] border-l-transparent border-r-[2px] lg:border-r-[3px] border-r-transparent border-b-[4px] lg:border-b-[5px] border-b-green-400"></div>
       </div>
 
-      <div className="absolute bottom-1 w-full text-center text-[6px] font-black text-white/20 uppercase tracking-[0.2em]">Scanner_Active</div>
+      <div className="absolute bottom-0.5 lg:bottom-1 w-full text-center text-[5px] lg:text-[6px] font-black text-white/20 uppercase tracking-[0.1em] lg:tracking-[0.2em]">Scanner</div>
     </div>
   );
 };
 
 const VictoryOverlay: React.FC<{ kills: number, points: number, onNext: () => void, onExit: () => void, isMP?: boolean, winner?: string }> = ({ kills, points, onNext, onExit, isMP, winner }) => (
-  <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-8 z-[5000] animate-in fade-in duration-700">
-    <div className="tactical-panel max-w-lg w-full p-12 bg-stone-900 border-2 border-orange-500 rounded-3xl text-center shadow-[0_0_100px_rgba(249,115,22,0.3)]">
-      <div className="mission-pulse mb-8 relative h-20 w-20 mx-auto">
-         <div className="absolute inset-0 flex items-center justify-center text-4xl">🎖️</div>
+  <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-4 lg:p-8 z-[5000] animate-in fade-in duration-700">
+    <div className="tactical-panel max-w-lg w-full p-6 lg:p-12 bg-stone-900 border-2 border-orange-500 rounded-2xl lg:rounded-3xl text-center shadow-[0_0_100px_rgba(249,115,22,0.3)]">
+      <div className="mission-pulse mb-4 lg:mb-8 relative h-14 w-14 lg:h-20 lg:w-20 mx-auto">
+         <div className="absolute inset-0 flex items-center justify-center text-2xl lg:text-4xl">🎖️</div>
       </div>
-      <h2 className="text-4xl lg:text-3xl font-black font-stencil text-white uppercase italic mb-2 tracking-widest drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]">
+      <h2 className="text-xl sm:text-2xl lg:text-4xl font-black font-stencil text-white uppercase italic mb-2 tracking-wider lg:tracking-widest drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]">
         {isMP ? `${winner}_VICTORY` : 'MISSION_COMPLETE'}
       </h2>
-      <div className="h-px w-full bg-gradient-to-r from-transparent via-orange-500/50 to-transparent my-6"></div>
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-orange-500/50 to-transparent my-4 lg:my-6"></div>
       
-      <div className="grid grid-cols-2 gap-4 mb-10">
-        <div className="bg-black/60 p-4 rounded border border-stone-800">
-           <div className="text-[10px] text-stone-500 font-black uppercase mb-1">UNITS_RETIRED</div>
-           <div className="text-3xl font-stencil text-white">{kills}</div>
+      <div className="grid grid-cols-2 gap-2 lg:gap-4 mb-6 lg:mb-10">
+        <div className="bg-black/60 p-3 lg:p-4 rounded border border-stone-800">
+           <div className="text-[8px] lg:text-[10px] text-stone-500 font-black uppercase mb-1">UNITS_RETIRED</div>
+           <div className="text-xl lg:text-3xl font-stencil text-white">{kills}</div>
         </div>
-        <div className="bg-black/60 p-4 rounded border border-stone-800">
-           <div className="text-[10px] text-stone-500 font-black uppercase mb-1">COMMAND_SCORE</div>
-           <div className="text-3xl font-stencil text-orange-500">{points}</div>
+        <div className="bg-black/60 p-3 lg:p-4 rounded border border-stone-800">
+           <div className="text-[8px] lg:text-[10px] text-stone-500 font-black uppercase mb-1">COMMAND_SCORE</div>
+           <div className="text-xl lg:text-3xl font-stencil text-orange-500">{points}</div>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 lg:gap-3">
         {!isMP && (
           <button 
             onClick={onNext}
-            className="w-full py-5 bg-white text-stone-950 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-xl active:scale-95"
+            className="w-full py-3 lg:py-5 bg-white text-stone-950 font-black text-[10px] lg:text-xs uppercase tracking-widest rounded-lg lg:rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-xl active:scale-95"
           >
             PROCEED_TO_NEXT_SECTOR
           </button>
         )}
         <button 
           onClick={onExit}
-          className="w-full py-4 bg-stone-800 text-stone-400 font-black text-[10px] uppercase tracking-widest rounded-xl border border-stone-700 hover:text-white transition-all active:scale-95"
+          className="w-full py-2.5 lg:py-4 bg-stone-800 text-stone-400 font-black text-[9px] lg:text-[10px] uppercase tracking-widest rounded-lg lg:rounded-xl border border-stone-700 hover:text-white transition-all active:scale-95"
         >
           RETURN_TO_COMMAND_HQ
         </button>
@@ -384,46 +384,46 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
       
       {/* Loading Screen */}
       {isLoading && (
-        <div className="fixed inset-0 bg-[#050505] z-[6000] flex flex-col items-center justify-center p-8">
-          <div className="w-full max-w-md space-y-8">
+        <div className="fixed inset-0 bg-[#050505] z-[6000] flex flex-col items-center justify-center p-4 lg:p-8">
+          <div className="w-full max-w-md space-y-4 lg:space-y-8">
             {/* Logo */}
-            <div className="flex items-center justify-center gap-4 mb-12">
-              <div className="w-16 h-16 bg-orange-600 rounded-lg flex items-center justify-center animate-pulse shadow-[0_0_40px_rgba(249,115,22,0.5)]">
-                <span className="text-3xl">🎖️</span>
+            <div className="flex items-center justify-center gap-3 lg:gap-4 mb-6 lg:mb-12">
+              <div className="w-10 h-10 lg:w-16 lg:h-16 bg-orange-600 rounded-lg flex items-center justify-center animate-pulse shadow-[0_0_40px_rgba(249,115,22,0.5)]">
+                <span className="text-xl lg:text-3xl">🎖️</span>
               </div>
               <div>
-                <div className="text-orange-500 text-sm font-black tracking-[0.5em] uppercase">LUCKY_MILITIA</div>
-                <div className="text-stone-600 text-[10px] font-bold tracking-widest">TACTICAL_DEPLOYMENT</div>
+                <div className="text-orange-500 text-[10px] lg:text-sm font-black tracking-[0.3em] lg:tracking-[0.5em] uppercase">LUCKY_MILITIA</div>
+                <div className="text-stone-600 text-[8px] lg:text-[10px] font-bold tracking-widest">TACTICAL_DEPLOYMENT</div>
               </div>
             </div>
             
             {/* Loading Message */}
             <div className="text-center">
-              <div className="text-orange-500 text-xs font-black tracking-widest animate-pulse mb-4">
+              <div className="text-orange-500 text-[10px] lg:text-xs font-black tracking-wider lg:tracking-widest animate-pulse mb-2 lg:mb-4">
                 {loadingMessage}
               </div>
             </div>
             
             {/* Progress Bar */}
-            <div className="space-y-2">
-              <div className="h-2 bg-stone-900 rounded-full overflow-hidden border border-stone-800">
+            <div className="space-y-1 lg:space-y-2">
+              <div className="h-1.5 lg:h-2 bg-stone-900 rounded-full overflow-hidden border border-stone-800">
                 <div 
                   className="h-full bg-gradient-to-r from-orange-600 to-orange-400 transition-all duration-300 ease-out shadow-[0_0_15px_rgba(249,115,22,0.5)]"
                   style={{ width: `${loadingProgress}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] font-black text-stone-600 uppercase tracking-widest">
+              <div className="flex justify-between text-[8px] lg:text-[10px] font-black text-stone-600 uppercase tracking-widest">
                 <span>PROGRESS</span>
                 <span>{loadingProgress}%</span>
               </div>
             </div>
             
             {/* Animated Dots */}
-            <div className="flex justify-center gap-2 pt-8">
+            <div className="flex justify-center gap-1.5 lg:gap-2 pt-4 lg:pt-8">
               {[0, 1, 2].map((i) => (
                 <div 
                   key={i}
-                  className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
+                  className="w-1.5 h-1.5 lg:w-2 lg:h-2 bg-orange-500 rounded-full animate-bounce"
                   style={{ animationDelay: `${i * 0.15}s` }}
                 />
               ))}
