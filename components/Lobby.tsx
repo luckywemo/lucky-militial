@@ -514,41 +514,41 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
 
         {/* RIGHT UNIT SPEC PANEL */}
         <div className="lg:col-span-3 flex flex-col gap-3">
-           <div className="tactical-panel flex-1 bg-stone-900/90 border border-stone-800 rounded-2xl p-3 lg:p-8 flex flex-col gap-3 shadow-2xl relative overflow-hidden">
-              <div className="grid grid-cols-3 gap-1.5 lg:gap-3">
+           <div className="tactical-panel flex-1 bg-stone-900/90 border border-stone-800 rounded-2xl p-4 lg:p-8 flex flex-col gap-4 lg:gap-3 shadow-2xl relative overflow-hidden">
+              <div className="grid grid-cols-3 gap-3 lg:gap-3">
                 {(['STRIKER', 'GHOST', 'TITAN'] as CharacterClass[]).map(c => (
                   <button 
                     key={c} 
                     onClick={() => setCharacterClass(c)} 
-                    className={`aspect-square rounded-xl border transition-all flex flex-col items-center justify-center ${characterClass === c ? 'bg-white border-white text-stone-950 scale-110 shadow-xl' : 'bg-stone-950 border-stone-800 text-stone-700 hover:text-stone-400'}`}
+                    className={`aspect-square rounded-xl border transition-all flex flex-col items-center justify-center ${characterClass === c ? 'bg-white border-white text-stone-950 scale-105 lg:scale-110 shadow-xl' : 'bg-stone-950 border-stone-800 text-stone-700 hover:text-stone-400'}`}
                   >
-                    <span className="text-base lg:text-2xl mb-0.5">{CLASS_META[c].icon}</span>
-                    <span className="text-[6px] lg:text-[8px] font-black uppercase tracking-tighter">{c}</span>
+                    <span className="text-3xl lg:text-2xl mb-1">{CLASS_META[c].icon}</span>
+                    <span className="text-[10px] lg:text-[8px] font-black uppercase tracking-tight">{c}</span>
                   </button>
                 ))}
               </div>
 
-              <div className="text-center pt-2">
-                 <h3 className="text-sm lg:text-3xl font-black font-stencil text-white uppercase italic tracking-widest">{characterClass}</h3>
-                 <p className="text-[7px] lg:text-[10px] text-stone-500 font-bold px-1 mt-1 leading-relaxed">"{CLASS_META[characterClass].desc}"</p>
+              <div className="text-center pt-3 lg:pt-2">
+                 <h3 className="text-2xl lg:text-3xl font-black font-stencil text-white uppercase italic tracking-widest">{characterClass}</h3>
+                 <p className="text-[11px] lg:text-[10px] text-stone-500 font-bold px-2 mt-2 leading-relaxed">"{CLASS_META[characterClass].desc}"</p>
               </div>
 
-              <div className="space-y-3 mt-auto pt-4 border-t border-stone-800/60">
-                <div className="space-y-1.5">
-                   <div className="flex justify-between text-[7px] lg:text-[10px] font-black text-stone-600 uppercase px-1">
+              <div className="space-y-4 lg:space-y-3 mt-auto pt-4 border-t border-stone-800/60">
+                <div className="space-y-2 lg:space-y-1.5">
+                   <div className="flex justify-between text-[11px] lg:text-[10px] font-black text-stone-600 uppercase px-1">
                      <span>Hull_Integrity</span>
                      <span className="text-stone-300">{CLASS_META[characterClass].hp}</span>
                    </div>
-                   <div className="h-1.5 lg:h-2 bg-stone-950 rounded-full overflow-hidden border border-stone-800 p-[1px]">
+                   <div className="h-2.5 lg:h-2 bg-stone-950 rounded-full overflow-hidden border border-stone-800 p-[1px]">
                       <div className="h-full bg-orange-600 transition-all duration-700 shadow-[0_0_8px_#f97316]" style={{ width: `${(CLASS_META[characterClass].hp / 200) * 100}%` }}></div>
                    </div>
                 </div>
-                <div className="space-y-1.5">
-                   <div className="flex justify-between text-[7px] lg:text-[10px] font-black text-stone-600 uppercase px-1">
+                <div className="space-y-2 lg:space-y-1.5">
+                   <div className="flex justify-between text-[11px] lg:text-[10px] font-black text-stone-600 uppercase px-1">
                      <span>Kinetic_Speed</span>
                      <span className="text-stone-300">{CLASS_META[characterClass].speed}</span>
                    </div>
-                   <div className="h-1.5 lg:h-2 bg-stone-950 rounded-full overflow-hidden border border-stone-800 p-[1px]">
+                   <div className="h-2.5 lg:h-2 bg-stone-950 rounded-full overflow-hidden border border-stone-800 p-[1px]">
                       <div className="h-full bg-cyan-500 transition-all duration-700 shadow-[0_0_8px_#22d3ee]" style={{ width: `${(CLASS_META[characterClass].speed / 150) * 100}%` }}></div>
                    </div>
                 </div>
