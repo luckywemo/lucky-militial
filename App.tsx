@@ -17,6 +17,7 @@ export interface MPConfig {
   alphaBots: number;
   bravoBots: number;
   scoreLimit: number;
+  mapSeed: string;
 }
 
 export interface MissionConfig {
