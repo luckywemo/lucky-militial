@@ -383,11 +383,15 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
   useEffect(() => {
     const interval = setInterval(() => {
       if ((window as any).gameStats) {
-        setStats({ ...(window as any).gameStats });
+        const newStats = { ...(window as any).gameStats };
+        if (gameMode === 'mission') {
+          console.log('Lives update:', { lives: newStats.lives, maxLives: newStats.maxLives, mission: newStats.mode });
+        }
+        setStats(newStats);
       }
     }, 100);
     return () => clearInterval(interval);
-  }, []);
+  }, [gameMode]);
 
   const playerTeam = squad.find(m => m.name === playerName)?.team || 'alpha';
   const showVirtualControls = virtualControlsEnabled || window.innerWidth < 1024;

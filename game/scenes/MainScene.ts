@@ -416,6 +416,7 @@ export class MainScene extends Phaser.Scene {
       this.resolveUnitOverlaps();
 
       if (this.abilityCooldown > 0) this.abilityCooldown -= delta;
+      if (this.safeZoneTimer > 0) this.safeZoneTimer -= delta;
       if (this.invulnerabilityTimer > 0) {
         this.invulnerabilityTimer -= delta;
         this.player.setAlpha(Math.sin(time * 0.05) > 0 ? 0.3 : 1.0);
@@ -591,10 +592,15 @@ export class MainScene extends Phaser.Scene {
     if (this.aiBots.getChildren().find((b: any) => b.getData('id') === data.id)) return;
     const bot = this.aiBots.create(data.x, data.y, 'hum_striker_pistol');
     const botName = data.name || `UNIT_${data.id.split('_').pop()}`;
+    const baseHp = 100 * this.difficultyModifier;
+
     bot.setTint(data.team === 'alpha' ? 0xf97316 : 0x22d3ee).setDepth(10)
       .setData('id', data.id)
       .setData('team', data.team)
       .setData('name', botName)
+      .setData('maxHp', baseHp)
+      .setData('hp', baseHp)
+      .setData('lastShot', 0)
       .setData('weaponKey', 'pistol');
     bot.body.setCircle(22, 10, 10);
 
