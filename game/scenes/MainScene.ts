@@ -30,6 +30,8 @@ export const WEAPONS_CONFIG: Record<string, WeaponConfig> = {
   plasma: { name: 'X-ION REPEATER', fireRate: 200, damage: 30, recoil: 200, bullets: 1, spread: 0.05, projectileScale: 1.8, projectileTint: 0xff00ff, maxAmmo: 20, key: 'plasma', icon: '🔮', type: 'energy', category: 'rifle', speed: 1600 }
 };
 
+const teamColors = { alpha: '#f97316', bravo: '#22d3ee' };
+
 export class MainScene extends Phaser.Scene {
   public declare add: Phaser.GameObjects.GameObjectFactory;
   public declare physics: Phaser.Physics.Arcade.ArcadePhysics;
@@ -46,6 +48,7 @@ export class MainScene extends Phaser.Scene {
   private playerLabel!: Phaser.GameObjects.Text;
   private weaponLabel!: Phaser.GameObjects.Text;
   private playerHpBar!: Phaser.GameObjects.Graphics;
+  private unitAuras!: Phaser.GameObjects.Graphics;
   private hitMarker!: Phaser.GameObjects.Image;
 
   private walls!: Phaser.Physics.Arcade.StaticGroup;
@@ -62,6 +65,7 @@ export class MainScene extends Phaser.Scene {
   private connections = new Map<string, DataConnection>();
   private otherPlayers = new Map<string, Phaser.Types.Physics.Arcade.SpriteWithDynamicBody>();
   private otherLabels = new Map<string, Phaser.GameObjects.Text>();
+  private botLabels = new Map<string, Phaser.GameObjects.Text>();
 
   private playerName = 'Guest';
   private playerTeam: 'alpha' | 'bravo' = 'alpha';
@@ -74,6 +78,8 @@ export class MainScene extends Phaser.Scene {
   private lastFired = 0;
   private kills = 0;
   private deaths = 0;
+  private lives = 3;
+  private maxLives = 3;
   private points = 0;
   private ammo = 0;
   private isRespawning = false;
@@ -130,16 +136,14 @@ export class MainScene extends Phaser.Scene {
     this.teamScores = { alpha: 0, bravo: 0 };
     this.kills = 0;
     this.points = 0;
+    this.lives = this.mission ? 3 : 999;
+    this.maxLives = this.mission ? 3 : 999;
     this.isMissionOver = false;
   }
 
-  preload() {
-    // Audio is now loaded on-demand in create() to prevent blocking
-    // This allows the scene to render immediately
-  }
+  preload() { }
 
   create() {
-    // Notify React that scene is starting to render
     window.dispatchEvent(new CustomEvent('SCENE_READY'));
 
     this.physics.world.setBounds(0, 0, 2000, 2000);
@@ -153,6 +157,7 @@ export class MainScene extends Phaser.Scene {
     this.luckBoxes = this.physics.add.group();
     this.weaponBoxes = this.physics.add.group();
     this.weaponItems = this.physics.add.group();
+    this.unitAuras = this.add.graphics().setDepth(1);
 
     if (this.mpConfig?.mode === 'HARDPOINT') {
       this.hardpointZone = this.add.circle(1000, 1000, 128, 0xffffff, 0.1).setDepth(-1).setStrokeStyle(2, 0xffffff);
@@ -170,8 +175,6 @@ export class MainScene extends Phaser.Scene {
     this.setupUIElements();
     this.setupEmitters();
     this.setupPhysics();
-
-    // Load audio in background (non-blocking)
     this.loadAudioAsync();
 
     if (this.roomId) this.initMultiplayer();
@@ -187,7 +190,6 @@ export class MainScene extends Phaser.Scene {
       for (let i = 0; i < botCount; i++) this.spawnAIBot('bravo');
     }
 
-    // Only host spawns items in multiplayer
     if (!this.roomId || this.isHost) {
       this.time.addEvent({ delay: 10000, callback: () => this.spawnLuckBox(), loop: true });
       this.time.addEvent({ delay: 15000, callback: () => this.spawnWeaponBox(), loop: true });
@@ -198,8 +200,6 @@ export class MainScene extends Phaser.Scene {
 
   private loadAudioAsync() {
     if (!this.audioEnabled) return;
-
-    // Load audio files in background without blocking
     const audioFiles = [
       { key: 'sfx_pistol', path: '/assets/audio/pistol.wav' },
       { key: 'sfx_shotgun', path: '/assets/audio/shotgun.wav' },
@@ -210,17 +210,10 @@ export class MainScene extends Phaser.Scene {
       { key: 'sfx_victory', path: '/assets/audio/level-complete.wav' },
       { key: 'music_loop', path: '/assets/audio/bg-music.wav' },
     ];
-
     audioFiles.forEach(({ key, path }) => {
-      if (!this.cache.audio.exists(key)) {
-        this.load.audio(key, path);
-      }
+      if (!this.cache.audio.exists(key)) this.load.audio(key, path);
     });
-
-    this.load.once('complete', () => {
-      this.initAudio();
-    });
-
+    this.load.once('complete', () => this.initAudio());
     this.load.start();
   }
 
@@ -240,7 +233,6 @@ export class MainScene extends Phaser.Scene {
     conn.on('open', () => {
       this.connections.set(conn.peer, conn);
       if (this.isHost) {
-        // Initial sync for late joiners
         const botData = this.aiBots.getChildren().map((bot: any) => ({
           id: bot.getData('id'),
           x: bot.x, y: bot.y, angle: bot.rotation,
@@ -279,6 +271,7 @@ export class MainScene extends Phaser.Scene {
         if (data.itemData) data.itemData.forEach((i: any) => this.createRemoteItem(i));
       }
     });
+
     conn.on('close', () => {
       this.otherPlayers.get(conn.peer)?.destroy();
       this.otherLabels.get(conn.peer)?.destroy();
@@ -297,21 +290,23 @@ export class MainScene extends Phaser.Scene {
     if (!p) {
       p = this.physics.add.sprite(data.x, data.y, `hum_striker_pistol`);
       p.setDepth(9).setData('team', data.team).setCircle(22, 10, 10);
-      this.otherPlayers.set(id, p);
+      this.otherPlayers.set(targetId, p);
       this.otherPlayersGroup.add(p);
       const teamColor = data.team === 'alpha' ? '#f97316' : '#22d3ee';
-      l = this.add.text(data.x, data.y - 50, data.name, { fontSize: '12px', color: teamColor, fontStyle: 'bold' }).setOrigin(0.5);
-      this.otherLabels.set(id, l);
+      const teamPrefix = data.team === 'alpha' ? '[ALPHA] ' : '[BRAVO] ';
+      l = this.add.text(data.x, data.y - 60, teamPrefix + data.name, { fontSize: '12px', color: teamColor, fontStyle: 'bold', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
+      this.otherLabels.set(targetId, l);
     }
     p.setPosition(data.x, data.y);
     p.setRotation(data.angle);
     p.setTint(data.team === 'alpha' ? 0xf97316 : 0x22d3ee);
-    l?.setPosition(data.x, data.y - 50);
+    l?.setPosition(data.x, data.y - 60);
   }
 
   private setupUIElements() {
     const teamColor = this.playerTeam === 'alpha' ? '#f97316' : '#22d3ee';
-    this.playerLabel = this.add.text(0, 0, this.playerName, { fontSize: '13px', fontStyle: '800', color: teamColor, fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
+    const teamPrefix = this.playerTeam === 'alpha' ? '[ALPHA] ' : '[BRAVO] ';
+    this.playerLabel = this.add.text(0, 0, teamPrefix + this.playerName, { fontSize: '13px', fontStyle: '800', color: teamColor, fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
     this.weaponLabel = this.add.text(0, 0, this.currentWeapon.name, { fontSize: '10px', fontStyle: 'bold', color: '#ffffff', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
     this.playerHpBar = this.add.graphics().setDepth(20);
     this.hitMarker = this.add.image(0, 0, 'hit_marker').setAlpha(0).setScrollFactor(0).setDepth(200).setScale(0.8);
@@ -319,8 +314,6 @@ export class MainScene extends Phaser.Scene {
 
   private initAudio() {
     if (!this.audioEnabled) return;
-
-    // Fallback: If music is cached but didn't play in preload (e.g. scene restart)
     if (!this.bgMusic && this.cache.audio.exists('music_loop')) {
       this.bgMusic = this.sound.add('music_loop', { loop: true, volume: 0.1 });
       this.bgMusic.play();
@@ -444,14 +437,12 @@ export class MainScene extends Phaser.Scene {
       }
     }
 
-    if (this.isHost && this.mpConfig?.mode === 'HARDPOINT') {
-      this.updateHardpoint(time);
-    }
+    if (this.isHost && this.mpConfig?.mode === 'HARDPOINT') this.updateHardpoint(time);
 
     this.playerShadow.setPosition(this.player.x + 6, this.player.y + 6);
-    if (this.isHost || !this.roomId) {
-      this.updateAIBots(time);
-    }
+    if (this.isHost || !this.roomId) this.updateAIBots(time);
+
+    this.updateAuras();
     this.updateHUD();
     this.checkWinCondition();
 
@@ -478,9 +469,7 @@ export class MainScene extends Phaser.Scene {
         this.isMissionOver = true;
         const winner = this.teamScores.alpha >= this.mpConfig.scoreLimit ? 'ALPHA' : 'BRAVO';
         this.playSound('sfx_victory', 0.8, false);
-        if (this.roomId) {
-          this.connections.forEach(c => c.send({ type: 'game_over', winner }));
-        }
+        if (this.roomId) this.connections.forEach(c => c.send({ type: 'game_over', winner }));
         window.dispatchEvent(new CustomEvent('MISSION_COMPLETE', { detail: { winner, alpha: this.teamScores.alpha, bravo: this.teamScores.bravo } }));
       }
     }
@@ -489,29 +478,20 @@ export class MainScene extends Phaser.Scene {
   private resolveUnitOverlaps() {
     const units = [this.player, ...this.aiBots.getChildren(), ...this.otherPlayers.values()];
     const minDist = 44;
-
     for (let i = 0; i < units.length; i++) {
       for (let j = i + 1; j < units.length; j++) {
         const u1 = units[i] as Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
         const u2 = units[j] as Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
-
         if (!u1.active || !u2.active || !u1.body || !u2.body) continue;
-
         const dx = u2.x - u1.x;
         const dy = u2.y - u1.y;
         const distanceSq = dx * dx + dy * dy;
-
         if (distanceSq < minDist * minDist) {
           const distance = Math.sqrt(distanceSq);
           const overlap = minDist - distance;
-
           const pushX = (dx / (distance || 1)) * (overlap * 0.5);
           const pushY = (dy / (distance || 1)) * (overlap * 0.5);
-
-          u1.x -= pushX;
-          u1.y -= pushY;
-          u2.x += pushX;
-          u2.y += pushY;
+          u1.x -= pushX; u1.y -= pushY; u2.x += pushX; u2.y += pushY;
         }
       }
     }
@@ -520,14 +500,12 @@ export class MainScene extends Phaser.Scene {
   private handleInput() {
     const { moveX, moveY, aimAngle, isAbility } = this.virtualInput;
     const speed = this.characterClass === 'GHOST' ? 450 : this.characterClass === 'TITAN' ? 300 : 380;
-
     if (moveX !== 0 || moveY !== 0) {
       this.player.setVelocity(moveX * speed, moveY * speed);
       if (aimAngle === null) this.player.rotation = Math.atan2(moveY, moveX);
     } else {
       this.player.setVelocity(0, 0);
     }
-
     if (aimAngle !== null) this.player.rotation = aimAngle;
     if (isAbility && this.abilityCooldown <= 0) this.triggerAbility();
   }
@@ -544,45 +522,28 @@ export class MainScene extends Phaser.Scene {
   private handleCombat(time: number) {
     if (this.virtualInput.isFiring && time > this.lastFired) {
       if (this.ammo <= 0 && !this.currentWeapon.isInfinite) {
-        // AUTO FALLBACK SYSTEM
         this.swapWeapon('pistol');
         this.showFloatingText(this.player.x, this.player.y - 100, "AMMO_DEPLETED: CYCLING_FALLBACK", "#ff0000");
         return;
       }
-
       const angle = this.virtualInput.aimAngle !== null ? this.virtualInput.aimAngle : this.player.rotation;
       this.muzzleEmitter.emitParticleAt(this.player.x + Math.cos(angle) * 45, this.player.y + Math.sin(angle) * 45, 8);
-
       for (let i = 0; i < this.currentWeapon.bullets; i++) {
         const spread = (Math.random() - 0.5) * this.currentWeapon.spread;
         this.spawnBullet(this.player.x, this.player.y, angle + spread, this.currentWeapon.key, 'player', this.playerTeam);
       }
-
-      // PHYSICAL RECOIL SYSTEM
       const recoilForce = this.currentWeapon.recoil;
       if (recoilForce > 0) {
         const recoilAngle = angle + Math.PI;
-        const pushbackMagnitude = recoilForce * 0.45;
-        this.physics.velocityFromRotation(recoilAngle, pushbackMagnitude, this.player.body.velocity);
+        this.physics.velocityFromRotation(recoilAngle, recoilForce * 0.45, this.player.body.velocity);
       }
-
       if (this.roomId) this.connections.forEach(c => c.send({ type: 'fire', x: this.player.x, y: this.player.y, angle, weaponKey: this.currentWeapon.key, team: this.playerTeam }));
       this.playSound(this.currentWeapon.category === 'pistol' ? 'sfx_pistol' : 'sfx_shotgun', 0.4);
       this.lastFired = time + this.currentWeapon.fireRate;
-
       if (!this.currentWeapon.isInfinite) {
         this.ammo--;
-        // Check for immediate fallback if that was the last bullet
-        if (this.ammo <= 0) {
-          this.time.delayedCall(100, () => {
-            if (this.currentWeapon.key !== 'pistol') {
-              this.swapWeapon('pistol');
-              this.showFloatingText(this.player.x, this.player.y - 100, "WEAPON_EXHAUSTED", "#ff4444");
-            }
-          });
-        }
+        if (this.ammo <= 0 && this.currentWeapon.key !== 'pistol') this.time.delayedCall(100, () => this.swapWeapon('pistol'));
       }
-
       this.cameras.main.shake(100, 0.004 * (recoilForce / 1000));
     }
   }
@@ -604,12 +565,13 @@ export class MainScene extends Phaser.Scene {
     const botId = id || `bot_${team}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const x = this.isHost ? Phaser.Math.Between(100, 1900) : 0;
     const y = this.isHost ? Phaser.Math.Between(100, 1900) : 0;
-
     const bot = this.aiBots.create(x, y, 'hum_striker_pistol');
     const baseHp = 100 * this.difficultyModifier;
+    const botName = `UNIT_${botId.split('_').pop()}`;
 
     bot.setTint(team === 'alpha' ? 0xf97316 : 0x22d3ee).setDepth(10)
       .setData('id', botId)
+      .setData('name', botName)
       .setData('maxHp', baseHp)
       .setData('hp', baseHp)
       .setData('team', team)
@@ -617,19 +579,29 @@ export class MainScene extends Phaser.Scene {
       .setData('weaponKey', 'pistol');
     bot.body.setCircle(22, 10, 10);
 
-    if (this.isHost && this.roomId) {
-      this.connections.forEach(c => c.send({ type: 'spawn_bot', id: botId, team, x, y }));
-    }
+    const teamColor = team === 'alpha' ? 0xf97316 : 0x22d3ee;
+    const teamPrefix = team === 'alpha' ? '[ALPHA] ' : '[BRAVO] ';
+    const label = this.add.text(x, y - 50, teamPrefix + botName, { fontSize: '10px', color: '#' + teamColor.toString(16), fontStyle: 'bold', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
+    this.botLabels.set(botId, label);
+
+    if (this.isHost && this.roomId) this.connections.forEach(c => c.send({ type: 'spawn_bot', id: botId, team, x, y, name: botName }));
   }
 
   private createRemoteBot(data: any) {
     if (this.aiBots.getChildren().find((b: any) => b.getData('id') === data.id)) return;
     const bot = this.aiBots.create(data.x, data.y, 'hum_striker_pistol');
+    const botName = data.name || `UNIT_${data.id.split('_').pop()}`;
     bot.setTint(data.team === 'alpha' ? 0xf97316 : 0x22d3ee).setDepth(10)
       .setData('id', data.id)
       .setData('team', data.team)
+      .setData('name', botName)
       .setData('weaponKey', 'pistol');
     bot.body.setCircle(22, 10, 10);
+
+    const teamColor = data.team === 'alpha' ? 0xf97316 : 0x22d3ee;
+    const teamPrefix = data.team === 'alpha' ? '[ALPHA] ' : '[BRAVO] ';
+    const label = this.add.text(data.x, data.y - 50, teamPrefix + botName, { fontSize: '10px', color: '#' + teamColor.toString(16), fontStyle: 'bold', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
+    this.botLabels.set(data.id, label);
   }
 
   private syncBots(botData: any[]) {
@@ -649,11 +621,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   private updateAIBots(time: number) {
-    if (!this.isHost) return; // Only host runs AI logic
-    if (this.isMissionOver) {
-      this.aiBots.getChildren().forEach((bot: any) => bot.body.stop());
-      return;
-    }
+    if (!this.isHost) return;
+    if (this.isMissionOver) { this.aiBots.getChildren().forEach((bot: any) => bot.body.stop()); return; }
+
     this.aiBots.getChildren().forEach((bot: any) => {
       const team = bot.getData('team');
       let nearestTarget: any = null;
@@ -663,14 +633,12 @@ export class MainScene extends Phaser.Scene {
         const d = Phaser.Math.Distance.Between(bot.x, bot.y, this.player.x, this.player.y);
         if (d < minDist) { nearestTarget = this.player; minDist = d; }
       }
-
       this.otherPlayers.forEach(p => {
         if (p.getData('team') !== team) {
           const d = Phaser.Math.Distance.Between(bot.x, bot.y, p.x, p.y);
           if (d < minDist) { nearestTarget = p; minDist = d; }
         }
       });
-
       this.aiBots.getChildren().forEach((otherBot: any) => {
         if (otherBot !== bot && otherBot.getData('team') !== team) {
           const d = Phaser.Math.Distance.Between(bot.x, bot.y, otherBot.x, otherBot.y);
@@ -682,35 +650,25 @@ export class MainScene extends Phaser.Scene {
         let desiredWeaponKey = 'pistol';
         if (minDist < 200) desiredWeaponKey = 'shotgun';
         else if (minDist < 500) desiredWeaponKey = 'smg';
-
         if (bot.getData('weaponKey') !== desiredWeaponKey) {
           bot.setData('weaponKey', desiredWeaponKey);
-          const wConfig = WEAPONS_CONFIG[desiredWeaponKey];
-          bot.setTexture(`hum_striker_${wConfig.category}`);
+          bot.setTexture(`hum_striker_${WEAPONS_CONFIG[desiredWeaponKey].category}`);
         }
-
-        const currentWeaponKey = bot.getData('weaponKey');
-        const weaponConfig = WEAPONS_CONFIG[currentWeaponKey];
-
+        const wConfig = WEAPONS_CONFIG[bot.getData('weaponKey')];
         const angle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
         bot.rotation = angle;
-
-        const botSpeed = 150 * (0.8 + this.difficultyModifier * 0.2);
-        this.physics.velocityFromRotation(angle, botSpeed, bot.body.velocity);
-
-        const delayFactor = Math.max(0.8, 2.5 / this.difficultyModifier);
-
-        if (time > bot.getData('lastShot') + weaponConfig.fireRate * delayFactor) {
-          for (let i = 0; i < weaponConfig.bullets; i++) {
-            const spread = (Math.random() - 0.5) * weaponConfig.spread;
-            this.spawnBullet(bot.x, bot.y, angle + spread, currentWeaponKey, 'bot', team);
-          }
+        this.physics.velocityFromRotation(angle, 150 * (0.8 + this.difficultyModifier * 0.2), bot.body.velocity);
+        const delay = Math.max(0.8, 2.5 / this.difficultyModifier);
+        if (time > bot.getData('lastShot') + wConfig.fireRate * delay) {
+          for (let i = 0; i < wConfig.bullets; i++) this.spawnBullet(bot.x, bot.y, angle + (Math.random() - 0.5) * wConfig.spread, wConfig.key, 'bot', team);
           bot.setData('lastShot', time);
-          this.playSound(weaponConfig.category === 'pistol' ? 'sfx_pistol' : 'sfx_shotgun', 0.1);
+          this.playSound(wConfig.category === 'pistol' ? 'sfx_pistol' : 'sfx_shotgun', 0.1);
         }
       } else {
         bot.body.velocity.scale(0.95);
       }
+      const label = this.botLabels.get(bot.getData('id'));
+      if (label) label.setPosition(bot.x, bot.y - 50);
     });
   }
 
@@ -719,82 +677,49 @@ export class MainScene extends Phaser.Scene {
     if (time % 1000 < 20) {
       let alphaIn = this.physics.overlap(this.hardpointZone, this.player) && this.playerTeam === 'alpha' ? 1 : 0;
       let bravoIn = this.physics.overlap(this.hardpointZone, this.player) && this.playerTeam === 'bravo' ? 1 : 0;
-
-      this.otherPlayers.forEach(p => {
-        if (this.physics.overlap(this.hardpointZone, p)) {
-          if (p.getData('team') === 'alpha') alphaIn++;
-          else bravoIn++;
-        }
-      });
-
-      if (alphaIn > bravoIn) this.teamScores.alpha++;
-      else if (bravoIn > alphaIn) this.teamScores.bravo++;
-
+      this.otherPlayers.forEach(p => { if (this.physics.overlap(this.hardpointZone, p)) { if (p.getData('team') === 'alpha') alphaIn++; else bravoIn++; } });
+      if (alphaIn > bravoIn) this.teamScores.alpha++; else if (bravoIn > alphaIn) this.teamScores.bravo++;
       this.connections.forEach(c => c.send({ type: 'score_update', scores: this.teamScores }));
     }
-
     if (time % 30000 < 20) {
-      this.hardpointCenter.x = Phaser.Math.Between(400, 1600);
-      this.hardpointCenter.y = Phaser.Math.Between(400, 1600);
+      this.hardpointCenter = { x: Phaser.Math.Between(400, 1600), y: Phaser.Math.Between(400, 1600) };
       this.moveHardpoint(this.hardpointCenter.x, this.hardpointCenter.y);
       this.connections.forEach(c => c.send({ type: 'hp_move', x: this.hardpointCenter.x, y: this.hardpointCenter.y }));
     }
   }
 
   private moveHardpoint(x: number, y: number) {
-    if (this.hardpointZone) {
-      this.hardpointZone.setPosition(x, y);
-      this.showFloatingText(x, y, "HARDPOINT_RELOCATED", "#ffffff");
-    }
+    if (this.hardpointZone) { this.hardpointZone.setPosition(x, y); this.showFloatingText(x, y, "HARDPOINT_RELOCATED", "#ffffff"); }
   }
 
   private takeDamage(dmg: number) {
     if (this.invulnerabilityTimer > 0 || this.safeZoneTimer > 0 || this.isRespawning || this.isMissionOver) return;
-
-    const difficultyDamageScale = 0.7 + (this.difficultyModifier * 0.3);
-    const scaledDmg = dmg * difficultyDamageScale;
-
+    const scaledDmg = dmg * (0.7 + this.difficultyModifier * 0.3);
     if (this.shield > 0) {
-      const remainingDmg = Math.max(0, scaledDmg - this.shield);
+      const remaining = Math.max(0, scaledDmg - this.shield);
       this.shield = Math.max(0, this.shield - scaledDmg);
-      this.health -= remainingDmg;
-    } else {
-      this.health -= scaledDmg;
-    }
-
+      this.health -= remaining;
+    } else this.health -= scaledDmg;
     this.invulnerabilityTimer = 400;
     this.playSound('sfx_hit_flesh', 0.8);
-
     if (this.health <= 0) {
-      this.deaths++;
+      this.deaths++; if (this.mission) this.lives--;
       this.isRespawning = true;
       this.playSound('sfx_death_human', 0.9);
-
       this.player.body.stop();
-      this.cameras.main.shake(300, 0.01);
-
-      this.tweens.add({
-        targets: this.player,
-        scale: 0,
-        rotation: 10,
-        alpha: 0,
-        duration: 800,
-        ease: 'Power2',
-        onStart: () => {
-          this.bloodEmitter.emitParticleAt(this.player.x, this.player.y, 25);
-          this.explosionEmitter.emitParticleAt(this.player.x, this.player.y, 15);
-        },
-        onComplete: () => {
-          if (this.isMissionOver) return;
-          this.player.setVisible(false);
-          this.time.delayedCall(1000, () => {
-            this.health = this.maxHealth;
-            this.shield = this.maxShield;
-            this.player.setPosition(1000, 1000).setVisible(true).setScale(1).setRotation(0).setAlpha(1);
-            this.isRespawning = false;
-            this.safeZoneTimer = 2000;
-          });
+      this.bloodEmitter.emitParticleAt(this.player.x, this.player.y, 25);
+      this.explosionEmitter.emitParticleAt(this.player.x, this.player.y, 15);
+      this.player.setVisible(false);
+      this.time.delayedCall(1500, () => {
+        if (this.isMissionOver) return;
+        if (this.mission && this.lives <= 0) {
+          this.isMissionOver = true;
+          window.dispatchEvent(new CustomEvent('MISSION_COMPLETE', { detail: { failed: true, reason: 'OUT_OF_LIVES' } }));
+          return;
         }
+        this.health = this.maxHealth; this.shield = this.maxShield;
+        this.player.setPosition(1000, 1000).setVisible(true).setAlpha(1);
+        this.isRespawning = false; this.safeZoneTimer = 2000;
       });
     }
   }
@@ -805,18 +730,12 @@ export class MainScene extends Phaser.Scene {
     if (hp <= 0) {
       this.bloodEmitter.emitParticleAt(target.x, target.y, 20);
       this.explosionEmitter.emitParticleAt(target.x, target.y, 10);
-
-      if (this.isHost && this.roomId) {
-        this.connections.forEach(c => c.send({ type: 'destroy_object', id: target.getData('id') }));
-      }
-
+      const id = target.getData('id');
+      const label = this.botLabels.get(id);
+      if (label) { label.destroy(); this.botLabels.delete(id); }
+      if (this.isHost && this.roomId) this.connections.forEach(c => c.send({ type: 'destroy_object', id }));
       target.destroy();
-
-      if (sourceTeam === this.playerTeam) {
-        this.kills++;
-        this.points += 100;
-      }
-
+      if (sourceTeam === this.playerTeam) { this.kills++; this.points += 100; }
       if (this.isHost && !this.isMissionOver) {
         if (this.mpConfig?.mode === 'TDM' || this.mpConfig?.mode === 'FFA') {
           this.teamScores[sourceTeam]++;
@@ -830,151 +749,76 @@ export class MainScene extends Phaser.Scene {
   private createArena() {
     this.walls = this.physics.add.staticGroup();
     const map = this.mpConfig?.map || 'URBAN_RUINS';
-
     for (let i = 0; i < 32; i++) {
-      this.walls.create(i * 64, 0, 'wall_block');
-      this.walls.create(i * 64, 2000, 'wall_block');
-      this.walls.create(0, i * 64, 'wall_block');
-      this.walls.create(2000, i * 64, 'wall_block');
+      this.walls.create(i * 64, 0, 'wall_block'); this.walls.create(i * 64, 2000, 'wall_block');
+      this.walls.create(0, i * 64, 'wall_block'); this.walls.create(2000, i * 64, 'wall_block');
     }
-
-    if (map === 'URBAN_RUINS') {
-      for (let i = 0; i < 15; i++) {
-        const x = this.seededRnd.between(400, 1600);
-        const y = this.seededRnd.between(400, 1600);
-        this.walls.create(x, y, 'wall_block').setScale(1.5).refreshBody();
-      }
-    } else if (map === 'THE_PIT') {
-      for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2;
-        this.walls.create(1000 + Math.cos(angle) * 300, 1000 + Math.sin(angle) * 300, 'wall_block');
-      }
-    } else {
-      for (let i = 0; i < 10; i++) {
-        this.walls.create(500, i * 128, 'wall_block');
-        this.walls.create(1500, 2000 - i * 128, 'wall_block');
-      }
-    }
+    if (map === 'URBAN_RUINS') { for (let i = 0; i < 15; i++) this.walls.create(this.seededRnd.between(400, 1600), this.seededRnd.between(400, 1600), 'wall_block').setScale(1.5).refreshBody(); }
+    else if (map === 'THE_PIT') { for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; this.walls.create(1000 + Math.cos(a) * 300, 1000 + Math.sin(a) * 300, 'wall_block'); } }
+    else { for (let i = 0; i < 10; i++) { this.walls.create(500, i * 128, 'wall_block'); this.walls.create(1500, 2000 - i * 128, 'wall_block'); } }
   }
 
   private spawnLuckBox() {
     if (this.isMissionOver) return;
-    const x = Phaser.Math.Between(300, 1700);
-    const y = Phaser.Math.Between(300, 1700);
-    const id = `luck_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-    const box = this.luckBoxes.create(x, y, 'luck_box');
-    box.setData('id', id).setDepth(5);
-
-    if (this.isHost && this.roomId) {
-      this.connections.forEach(c => c.send({ type: 'spawn_box', boxType: 'luck', id, x, y }));
-    }
+    const x = Phaser.Math.Between(300, 1700), y = Phaser.Math.Between(300, 1700), id = `luck_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    this.luckBoxes.create(x, y, 'luck_box').setData('id', id).setDepth(5);
+    if (this.isHost && this.roomId) this.connections.forEach(c => c.send({ type: 'spawn_box', boxType: 'luck', id, x, y }));
   }
 
   private spawnWeaponBox() {
     if (this.isMissionOver) return;
-    const x = Phaser.Math.Between(300, 1700);
-    const y = Phaser.Math.Between(300, 1700);
-    const id = `weapon_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-    const box = this.weaponBoxes.create(x, y, 'weapon_box');
-    box.setData('id', id).setDepth(5);
-
-    this.tweens.add({
-      targets: box,
-      scale: 1.1,
-      duration: 1000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
-    if (this.isHost && this.roomId) {
-      this.connections.forEach(c => c.send({ type: 'spawn_box', boxType: 'weapon', id, x, y }));
-    }
+    const x = Phaser.Math.Between(300, 1700), y = Phaser.Math.Between(300, 1700), id = `weapon_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const box = this.weaponBoxes.create(x, y, 'weapon_box').setData('id', id).setDepth(5);
+    this.tweens.add({ targets: box, scale: 1.1, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    if (this.isHost && this.roomId) this.connections.forEach(c => c.send({ type: 'spawn_box', boxType: 'weapon', id, x, y }));
   }
 
   private createRemoteBox(data: any) {
     const group = data.boxType === 'luck' ? this.luckBoxes : this.weaponBoxes;
-    const tex = data.boxType === 'luck' ? 'luck_box' : 'weapon_box';
     if (group.getChildren().find((b: any) => b.getData('id') === data.id)) return;
-    const box = group.create(data.x, data.y, tex);
-    box.setData('id', data.id).setDepth(5);
+    group.create(data.x, data.y, data.boxType === 'luck' ? 'luck_box' : 'weapon_box').setData('id', data.id).setDepth(5);
   }
 
   private createRemoteItem(data: any) {
     if (this.weaponItems.getChildren().find((i: any) => i.getData('id') === data.id)) return;
-    const config = WEAPONS_CONFIG[data.weaponKey];
-    const item = this.add.text(data.x, data.y, config.icon, { fontSize: '32px' }).setOrigin(0.5);
-    this.physics.add.existing(item);
-    this.weaponItems.add(item);
+    const item = this.add.text(data.x, data.y, WEAPONS_CONFIG[data.weaponKey].icon, { fontSize: '32px' }).setOrigin(0.5);
+    this.physics.add.existing(item); this.weaponItems.add(item);
     item.setData('weaponKey', data.weaponKey).setData('id', data.id);
   }
 
   private destroyRemoteObject(data: any) {
     const all = [...this.aiBots.getChildren(), ...this.luckBoxes.getChildren(), ...this.weaponBoxes.getChildren(), ...this.weaponItems.getChildren()];
-    const obj = all.find((o: any) => o.getData('id') === data.id);
-    if (obj) obj.destroy();
+    all.find((o: any) => o.getData('id') === data.id)?.destroy();
   }
 
   private collectLuckBox(box: any) {
-    const id = box.getData('id');
-    this.explosionEmitter.emitParticleAt(box.x, box.y, 8);
-    this.ammo = this.currentWeapon.maxAmmo;
-    this.health = Math.min(this.health + 50, this.maxHealth);
-    this.points += 25;
-    this.playSound('sfx_powerup', 0.6);
+    const id = box.getData('id'); this.explosionEmitter.emitParticleAt(box.x, box.y, 8);
+    this.ammo = this.currentWeapon.maxAmmo; this.health = Math.min(this.health + 50, this.maxHealth);
+    this.points += 25; this.playSound('sfx_powerup', 0.6);
     this.showFloatingText(box.x, box.y, "RESOURCES_RESTORED +25", "#f97316");
-
-    if (this.roomId) {
-      this.connections.forEach(c => c.send({ type: 'destroy_object', id }));
-    }
+    if (this.roomId) this.connections.forEach(c => c.send({ type: 'destroy_object', id }));
     box.destroy();
   }
 
   private activateWeaponBox(box: any) {
-    const id = box.getData('id');
-    this.explosionEmitter.emitParticleAt(box.x, box.y, 10);
-    this.playSound('sfx_hit_flesh', 0.4);
-
-    const keys = Object.keys(WEAPONS_CONFIG);
-    const randomKey = keys[Phaser.Math.Between(0, keys.length - 1)];
-    const config = WEAPONS_CONFIG[randomKey];
-    const itemId = `item_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-
+    const id = box.getData('id'); this.explosionEmitter.emitParticleAt(box.x, box.y, 10);
+    const keys = Object.keys(WEAPONS_CONFIG); const key = keys[Phaser.Math.Between(0, keys.length - 1)];
+    const config = WEAPONS_CONFIG[key]; const itemId = `item_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const item = this.add.text(box.x, box.y, config.icon, { fontSize: '32px' }).setOrigin(0.5);
-    this.physics.add.existing(item);
-    this.weaponItems.add(item);
-    item.setData('weaponKey', randomKey).setData('id', itemId);
-
+    this.physics.add.existing(item); this.weaponItems.add(item);
+    item.setData('weaponKey', key).setData('id', itemId);
     if (this.roomId) {
-      if (this.isHost) {
-        this.connections.forEach(c => c.send({ type: 'spawn_item', id: itemId, weaponKey: randomKey, x: box.x, y: box.y }));
-      }
+      if (this.isHost) this.connections.forEach(c => c.send({ type: 'spawn_item', id: itemId, weaponKey: key, x: box.x, y: box.y }));
       this.connections.forEach(c => c.send({ type: 'destroy_object', id }));
     }
-
-    this.tweens.add({
-      targets: item,
-      y: box.y - 15,
-      duration: 1000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
+    this.tweens.add({ targets: item, y: box.y - 15, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     box.destroy();
   }
 
   private collectWeaponItem(item: any) {
-    const key = item.getData('weaponKey');
-    const id = item.getData('id');
-    this.swapWeapon(key);
-    this.points += 50;
-    this.playSound('sfx_powerup', 0.8);
+    this.swapWeapon(item.getData('weaponKey')); this.points += 50; this.playSound('sfx_powerup', 0.8);
     this.showFloatingText(item.x, item.y, "HARDWARE_SYNCHRONIZED +50", "#00ffff");
-
-    if (this.roomId) {
-      this.connections.forEach(c => c.send({ type: 'destroy_object', id }));
-    }
+    if (this.roomId) this.connections.forEach(c => c.send({ type: 'destroy_object', id: item.getData('id') }));
     item.destroy();
   }
 
@@ -983,27 +827,27 @@ export class MainScene extends Phaser.Scene {
     this.tweens.add({ targets: t, y: y - 80, alpha: 0, duration: 1200, onComplete: () => t.destroy() });
   }
 
+  private updateAuras() {
+    this.unitAuras.clear();
+    const drawAura = (unit: any, team: string) => {
+      if (!unit.active) return;
+      const color = team === 'alpha' ? 0xf97316 : 0x22d3ee;
+      this.unitAuras.lineStyle(2, color, 0.5); this.unitAuras.strokeCircle(unit.x, unit.y, 35);
+      this.unitAuras.fillStyle(color, 0.1); this.unitAuras.fillCircle(unit.x, unit.y, 35);
+    };
+    drawAura(this.player, this.playerTeam);
+    this.otherPlayers.forEach(p => drawAura(p, p.getData('team')));
+    this.aiBots.getChildren().forEach((b: any) => drawAura(b, b.getData('team')));
+  }
+
   private swapWeapon(key: string) {
     const config = WEAPONS_CONFIG[key];
     if (config) {
-      this.currentWeapon = config;
-      this.ammo = config.maxAmmo;
-
-      this.tweens.add({
-        targets: this.player,
-        scaleX: 1.25,
-        scaleY: 1.25,
-        duration: 80,
-        yoyo: true,
-        ease: 'Sine.easeInOut'
-      });
-
+      this.currentWeapon = config; this.ammo = config.maxAmmo;
+      this.tweens.add({ targets: this.player, scaleX: 1.25, scaleY: 1.25, duration: 80, yoyo: true, ease: 'Sine.easeInOut' });
       this.abilityEmitter.emitParticleAt(this.player.x, this.player.y, 1);
       this.showFloatingText(this.player.x, this.player.y - 40, `${config.icon} ${config.name} EQUIPPED`, teamColors[this.playerTeam]);
-      this.playSound('sfx_powerup', 0.3);
-
-      this.weaponLabel.setText(config.name);
-      this.player.setTexture(`hum_${this.characterClass.toLowerCase()}_${config.category}`);
+      this.weaponLabel.setText(config.name); this.player.setTexture(`hum_${this.characterClass.toLowerCase()}_${config.category}`);
     }
   }
 
@@ -1016,22 +860,11 @@ export class MainScene extends Phaser.Scene {
 
   private updateHUD() {
     (window as any).gameStats = {
-      hp: this.health,
-      maxHp: this.maxHealth,
-      shield: this.shield,
-      maxShield: this.maxShield,
-      ammo: this.ammo,
-      maxAmmo: this.currentWeapon.maxAmmo,
-      weaponKey: this.currentWeapon.key,
-      weaponName: this.currentWeapon.name,
-      isInfinite: this.currentWeapon.isInfinite,
-      abilityCooldown: this.abilityCooldown,
-      kills: this.kills,
-      targetKills: this.mission?.targetKills || 0,
-      points: this.points,
-      teamScores: this.teamScores,
-      mode: this.mpConfig?.mode || 'MISSION',
-      isOver: this.isMissionOver,
+      hp: this.health, maxHp: this.maxHealth, shield: this.shield, maxShield: this.maxShield, ammo: this.ammo, maxAmmo: this.currentWeapon.maxAmmo,
+      weaponKey: this.currentWeapon.key, weaponName: this.currentWeapon.name, isInfinite: this.currentWeapon.isInfinite,
+      abilityCooldown: this.abilityCooldown, kills: this.kills, targetKills: this.mission?.targetKills || 0,
+      points: this.points, lives: this.lives, maxLives: this.maxLives, teamScores: this.teamScores,
+      mode: this.mpConfig?.mode || 'MISSION', isOver: this.isMissionOver,
       playerPos: { x: this.player.x, y: this.player.y, rotation: this.player.rotation },
       entities: [
         ...this.aiBots.getChildren().map((b: any) => ({ x: b.x, y: b.y, team: b.getData('team'), type: 'bot' })),
@@ -1040,5 +873,3 @@ export class MainScene extends Phaser.Scene {
     };
   }
 }
-
-const teamColors = { alpha: '#f97316', bravo: '#22d3ee' };

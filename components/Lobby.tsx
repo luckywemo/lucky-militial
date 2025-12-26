@@ -6,7 +6,7 @@ import { GameMode, CharacterClass, MissionConfig, MPMatchMode, MPMap, MPConfig }
 interface SquadMember {
   name: string;
   team: 'alpha' | 'bravo';
-  id: string; // Added ID to ensure unique tracking in UI
+  id: string;
 }
 
 interface Props {
@@ -85,7 +85,6 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
     squadRef.current = squad;
   }, [squad]);
 
-  // Background music for lobby
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -93,11 +92,9 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
       if (!bgMusicRef.current) {
         bgMusicRef.current = new Audio('/assets/audio/bg-music.wav');
         bgMusicRef.current.loop = true;
-        bgMusicRef.current.volume = 0.08; // Lower volume for lobby ambiance
+        bgMusicRef.current.volume = 0.08;
       }
-      bgMusicRef.current.play().catch(() => {
-        // Autoplay blocked - will play on first user interaction
-      });
+      bgMusicRef.current.play().catch(() => { });
     } else {
       if (bgMusicRef.current) {
         bgMusicRef.current.pause();
@@ -384,41 +381,58 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-2 lg:gap-4">
                     <div className="space-y-2">
-                      <div className="text-[8px] lg:text-[11px] font-black text-orange-500 uppercase flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_#f97316]"></div> Alpha
+                      <div className="text-[10px] font-black text-white bg-orange-600/20 px-2 py-0.5 rounded border border-orange-500/30 uppercase flex items-center justify-between">
+                        <span>ALPHA_SQUAD</span>
+                        <div className="flex gap-1">
+                          <div className="w-1 h-1 bg-orange-500 rounded-full animate-pulse"></div>
+                          <div className="w-1 h-1 bg-orange-500 rounded-full animate-pulse delay-75"></div>
+                          <div className="w-1 h-1 bg-orange-500 rounded-full animate-pulse delay-150"></div>
+                        </div>
                       </div>
                       <div className="space-y-1">
                         {squad.filter(m => m.team === 'alpha').map((m, i) => <PersonnelCard key={m.id || i} member={m} isSelf={m.name === playerName} />)}
-                        {squad.filter(m => m.team === 'alpha').length === 0 && <div className="h-8 border border-dashed border-stone-900 rounded flex items-center justify-center text-[6px] text-stone-800 uppercase font-bold italic">Awaiting</div>}
+                        {squad.filter(m => m.team === 'alpha').length === 0 && <div className="h-8 border border-dashed border-stone-900 rounded flex items-center justify-center text-[6px] text-stone-800 uppercase font-bold italic">Awaiting_Uplink</div>}
                       </div>
                     </div>
+
                     <div className="space-y-2">
-                      <div className="text-[8px] lg:text-[11px] font-black text-cyan-500 uppercase flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_8px_#22d3ee]"></div> Bravo
+                      <div className="text-[10px] font-black text-white bg-cyan-600/20 px-2 py-0.5 rounded border border-cyan-500/30 uppercase flex items-center justify-between">
+                        <span>BRAVO_SQUAD</span>
+                        <div className="flex gap-1">
+                          <div className="w-1 h-1 bg-cyan-500 rounded-full animate-pulse"></div>
+                          <div className="w-1 h-1 bg-cyan-500 rounded-full animate-pulse delay-75"></div>
+                          <div className="w-1 h-1 bg-cyan-500 rounded-full animate-pulse delay-150"></div>
+                        </div>
                       </div>
                       <div className="space-y-1">
                         {squad.filter(m => m.team === 'bravo').map((m, i) => <PersonnelCard key={m.id || i} member={m} isSelf={m.name === playerName} />)}
-                        {squad.filter(m => m.team === 'bravo').length === 0 && <div className="h-8 border border-dashed border-stone-900 rounded flex items-center justify-center text-[6px] text-stone-800 uppercase font-bold italic">Awaiting</div>}
+                        {squad.filter(m => m.team === 'bravo').length === 0 && <div className="h-8 border border-dashed border-stone-900 rounded flex items-center justify-center text-[6px] text-stone-800 uppercase font-bold italic">Awaiting_Uplink</div>}
                       </div>
                     </div>
                   </div>
 
                   {isHost && (
                     <div className="mt-4 p-4 bg-stone-900/60 border border-stone-800 rounded-xl space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Alpha_Bots</span>
+                      <div className="flex justify-between items-center bg-black/40 p-2 rounded-lg border border-orange-500/10">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">ALLY_BOTS</span>
+                          <span className="text-[7px] text-stone-600 font-bold uppercase">Alpha_Team</span>
+                        </div>
                         <div className="flex items-center gap-4">
-                          <button onClick={() => setAlphaBots(prev => Math.max(0, prev - 1))} className="w-8 h-8 bg-black border border-stone-800 rounded flex items-center justify-center text-white">-</button>
+                          <button onClick={() => setAlphaBots(prev => Math.max(0, prev - 1))} className="w-8 h-8 bg-black/60 border border-stone-800 rounded flex items-center justify-center text-white hover:border-orange-500 transition-all">-</button>
                           <span className="text-xl font-stencil text-white w-8 text-center">{alphaBots}</span>
-                          <button onClick={() => setAlphaBots(prev => Math.min(6, prev + 1))} className="w-8 h-8 bg-black border border-stone-800 rounded flex items-center justify-center text-white">+</button>
+                          <button onClick={() => setAlphaBots(prev => Math.min(6, prev + 1))} className="w-8 h-8 bg-black/60 border border-stone-800 rounded flex items-center justify-center text-white hover:border-orange-500 transition-all">+</button>
                         </div>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black text-cyan-500 uppercase tracking-widest">Bravo_Bots</span>
+                      <div className="flex justify-between items-center bg-black/40 p-2 rounded-lg border border-cyan-500/10">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-cyan-500 uppercase tracking-widest">ENEMY_BOTS</span>
+                          <span className="text-[7px] text-stone-600 font-bold uppercase">Bravo_Team</span>
+                        </div>
                         <div className="flex items-center gap-4">
-                          <button onClick={() => setBravoBots(prev => Math.max(0, prev - 1))} className="w-8 h-8 bg-black border border-stone-800 rounded flex items-center justify-center text-white">-</button>
+                          <button onClick={() => setBravoBots(prev => Math.max(0, prev - 1))} className="w-8 h-8 bg-black/60 border border-stone-800 rounded flex items-center justify-center text-white hover:border-cyan-500 transition-all">-</button>
                           <span className="text-xl font-stencil text-white w-8 text-center">{bravoBots}</span>
-                          <button onClick={() => setBravoBots(prev => Math.min(6, prev + 1))} className="w-8 h-8 bg-black border border-stone-800 rounded flex items-center justify-center text-white">+</button>
+                          <button onClick={() => setBravoBots(prev => Math.min(6, prev + 1))} className="w-8 h-8 bg-black/60 border border-stone-800 rounded flex items-center justify-center text-white hover:border-cyan-500 transition-all">+</button>
                         </div>
                       </div>
                     </div>
