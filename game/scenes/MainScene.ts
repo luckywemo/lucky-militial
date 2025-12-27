@@ -218,15 +218,21 @@ export class MainScene extends Phaser.Scene {
   }
 
   private initMultiplayer() {
-    const peerId = this.isHost ? `LM-SCTR-${this.roomId}` : undefined;
-    this.peer = new Peer(peerId);
-    this.peer.on('open', () => {
-      if (!this.isHost && this.roomId) {
-        const conn = this.peer!.connect(`LM-SCTR-${this.roomId}`);
-        this.handleConnection(conn);
-      }
-    });
-    this.peer.on('connection', (conn) => this.handleConnection(conn));
+    // Host doesn't create a new peer - Lobby already created one with the same ID
+    // Creating a duplicate peer would cause "Peer ID already taken" error
+    // Only clients create a peer to connect to the host
+    if (!this.isHost) {
+      this.peer = new Peer();
+      this.peer.on('open', () => {
+        if (this.roomId) {
+          const conn = this.peer!.connect(`LM-SCTR-${this.roomId}`);
+          this.handleConnection(conn);
+        }
+      });
+      this.peer.on('connection', (conn) => this.handleConnection(conn));
+    }
+    // Host will receive connections through the Lobby peer
+    // No peer initialization needed for host in MainScene
   }
 
   private handleConnection(conn: DataConnection) {
@@ -632,47 +638,146 @@ export class MainScene extends Phaser.Scene {
 
     this.aiBots.getChildren().forEach((bot: any) => {
       const team = bot.getData('team');
+
+      // 1. FIND TARGETS
       let nearestTarget: any = null;
       let minDist = 800;
+      const allTargets: any[] = [];
 
+      // Collect all potential targets
       if (this.playerTeam !== team) {
         const d = Phaser.Math.Distance.Between(bot.x, bot.y, this.player.x, this.player.y);
+        allTargets.push({ entity: this.player, dist: d });
         if (d < minDist) { nearestTarget = this.player; minDist = d; }
       }
+
       this.otherPlayers.forEach(p => {
         if (p.getData('team') !== team) {
           const d = Phaser.Math.Distance.Between(bot.x, bot.y, p.x, p.y);
+          allTargets.push({ entity: p, dist: d });
           if (d < minDist) { nearestTarget = p; minDist = d; }
         }
       });
+
       this.aiBots.getChildren().forEach((otherBot: any) => {
         if (otherBot !== bot && otherBot.getData('team') !== team) {
           const d = Phaser.Math.Distance.Between(bot.x, bot.y, otherBot.x, otherBot.y);
+          allTargets.push({ entity: otherBot, dist: d });
           if (d < minDist) { nearestTarget = otherBot; minDist = d; }
         }
       });
 
+      // 2. CHECK TEAMMATE CLUSTERING (spread positioning)
+      const teammates = this.aiBots.getChildren().filter((b: any) =>
+        b !== bot && b.getData('team') === team
+      );
+
+      let clusterAvoidanceX = 0;
+      let clusterAvoidanceY = 0;
+      teammates.forEach((teammate: any) => {
+        const dist = Phaser.Math.Distance.Between(bot.x, bot.y, teammate.x, teammate.y);
+        if (dist < 150) { // Too close to teammate
+          const angle = Phaser.Math.Angle.Between(teammate.x, teammate.y, bot.x, bot.y);
+          clusterAvoidanceX += Math.cos(angle) * (150 - dist);
+          clusterAvoidanceY += Math.sin(angle) * (150 - dist);
+        }
+      });
+
       if (nearestTarget) {
+        // 3. WEAPON SELECTION
         let desiredWeaponKey = 'pistol';
         if (minDist < 200) desiredWeaponKey = 'shotgun';
         else if (minDist < 500) desiredWeaponKey = 'smg';
+
         if (bot.getData('weaponKey') !== desiredWeaponKey) {
           bot.setData('weaponKey', desiredWeaponKey);
           bot.setTexture(`hum_striker_${WEAPONS_CONFIG[desiredWeaponKey].category}`);
         }
+
         const wConfig = WEAPONS_CONFIG[bot.getData('weaponKey')];
-        const angle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
-        bot.rotation = angle;
-        this.physics.velocityFromRotation(angle, 150 * (0.8 + this.difficultyModifier * 0.2), bot.body.velocity);
+
+        // 4. TACTICAL POSITIONING
+        const botHp = bot.getData('hp');
+        const maxHp = bot.getData('maxHp');
+        const healthPercent = botHp / maxHp;
+
+        let targetX = nearestTarget.x;
+        let targetY = nearestTarget.y;
+        let moveSpeed = 150 * (0.8 + this.difficultyModifier * 0.2);
+
+        // RETREAT if low health
+        if (healthPercent < 0.3) {
+          // Move away from target
+          const retreatAngle = Phaser.Math.Angle.Between(nearestTarget.x, nearestTarget.y, bot.x, bot.y);
+          targetX = bot.x + Math.cos(retreatAngle) * 300;
+          targetY = bot.y + Math.sin(retreatAngle) * 300;
+          moveSpeed *= 1.3; // Move faster when retreating
+        }
+        // FLANKING behavior - circle around target
+        else if (minDist > 250 && minDist < 600) {
+          const baseAngle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
+          // Add perpendicular offset for flanking
+          const flankOffset = (bot.getData('id').charCodeAt(0) % 2 === 0) ? Math.PI / 3 : -Math.PI / 3;
+          const flankAngle = baseAngle + flankOffset;
+          targetX = nearestTarget.x + Math.cos(flankAngle) * 250;
+          targetY = nearestTarget.y + Math.sin(flankAngle) * 250;
+        }
+        // CLOSE COMBAT - strafe around target
+        else if (minDist < 250) {
+          const strafeAngle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
+          const strafeDirection = Math.sin(time * 0.002) > 0 ? 1 : -1;
+          targetX = bot.x + Math.cos(strafeAngle + Math.PI / 2 * strafeDirection) * 100;
+          targetY = bot.y + Math.sin(strafeAngle + Math.PI / 2 * strafeDirection) * 100;
+        }
+
+        // 5. APPLY CLUSTER AVOIDANCE
+        if (clusterAvoidanceX !== 0 || clusterAvoidanceY !== 0) {
+          targetX += clusterAvoidanceX * 0.5;
+          targetY += clusterAvoidanceY * 0.5;
+        }
+
+        // 6. MOVEMENT
+        const moveAngle = Phaser.Math.Angle.Between(bot.x, bot.y, targetX, targetY);
+        this.physics.velocityFromRotation(moveAngle, moveSpeed, bot.body.velocity);
+
+        // 7. AIMING (always aim at target, not movement direction)
+        const aimAngle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
+        bot.rotation = aimAngle;
+
+        // 8. SHOOTING
         const delay = Math.max(0.8, 2.5 / this.difficultyModifier);
         if (time > bot.getData('lastShot') + wConfig.fireRate * delay) {
-          for (let i = 0; i < wConfig.bullets; i++) this.spawnBullet(bot.x, bot.y, angle + (Math.random() - 0.5) * wConfig.spread, wConfig.key, 'bot', team);
-          bot.setData('lastShot', time);
-          this.playSound(wConfig.category === 'pistol' ? 'sfx_pistol' : 'sfx_shotgun', 0.1);
+          // Only shoot if target is in reasonable range and not retreating
+          if (minDist < 700 && healthPercent > 0.2) {
+            for (let i = 0; i < wConfig.bullets; i++) {
+              this.spawnBullet(bot.x, bot.y, aimAngle + (Math.random() - 0.5) * wConfig.spread, wConfig.key, 'bot', team);
+            }
+            bot.setData('lastShot', time);
+            this.playSound(wConfig.category === 'pistol' ? 'sfx_pistol' : 'sfx_shotgun', 0.1);
+          }
         }
       } else {
-        bot.body.velocity.scale(0.95);
+        // NO TARGET - patrol behavior
+        if (!bot.getData('patrolTarget') || Math.random() < 0.01) {
+          bot.setData('patrolTarget', {
+            x: Phaser.Math.Between(200, 1800),
+            y: Phaser.Math.Between(200, 1800)
+          });
+        }
+
+        const patrol = bot.getData('patrolTarget');
+        const patrolDist = Phaser.Math.Distance.Between(bot.x, bot.y, patrol.x, patrol.y);
+
+        if (patrolDist > 50) {
+          const patrolAngle = Phaser.Math.Angle.Between(bot.x, bot.y, patrol.x, patrol.y);
+          this.physics.velocityFromRotation(patrolAngle, 100, bot.body.velocity);
+          bot.rotation = patrolAngle;
+        } else {
+          bot.body.velocity.scale(0.95);
+        }
       }
+
+      // Update label position
       const label = this.botLabels.get(bot.getData('id'));
       if (label) label.setPosition(bot.x, bot.y - 50);
     });

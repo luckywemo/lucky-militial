@@ -85,6 +85,33 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
     squadRef.current = squad;
   }, [squad]);
 
+  // Sync name changes to connected peers
+  useEffect(() => {
+    if (!activeRoom) return; // Only sync if in a room
+
+    const myId = isHost ? 'host' : (peerRef.current?.id || '');
+
+    if (isHost) {
+      // Host: update own squad entry and broadcast to all clients
+      setSquad((prev) => {
+        const next = prev.map(m => m.id === 'host' ? { ...m, name: playerName } : m);
+        // Broadcast to all clients
+        connections.current.forEach(c => {
+          if (c.open) {
+            c.send({ type: 'update_name', id: 'host', name: playerName });
+          }
+        });
+        return next;
+      });
+    } else {
+      // Client: send update to host
+      const conn = connections.current[0];
+      if (conn && conn.open) {
+        conn.send({ type: 'update_name', name: playerName });
+      }
+    }
+  }, [playerName, activeRoom, isHost]);
+
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -156,6 +183,13 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
             return next;
           });
         }
+        if (data.type === 'update_name') {
+          setSquad((prev) => {
+            const next = prev.map(m => m.id === conn.peer ? { ...m, name: data.name } : m);
+            broadcastSquad(next);
+            return next;
+          });
+        }
       });
 
       conn.on('close', () => {
@@ -196,6 +230,11 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
         }
         if (data.type === 'start') {
           onStart(roomCode, false, 'multiplayer', undefined, data.squad, data.mpConfig);
+        }
+        if (data.type === 'update_name') {
+          setSquad((prev) => {
+            return prev.map(m => m.id === data.id ? { ...m, name: data.name } : m);
+          });
         }
       });
       conn.on('close', () => {
