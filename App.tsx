@@ -39,7 +39,7 @@ const MISSIONS: MissionConfig[] = [
 const BootSequence: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const [logs, setLogs] = useState<string[]>([]);
   const [glitch, setGlitch] = useState(false);
-  
+
   const bootLogs = [
     "> INITIALIZING NEURAL_LINK_V5...",
     "> SYNCING TACTICAL SATELLITE BROADCAST...",
@@ -81,7 +81,7 @@ const BootSequence: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
             <div className="text-stone-500 text-[8px] sm:text-[9px] lg:text-[10px] font-bold tracking-[0.2em] sm:tracking-[0.3em] lg:tracking-[0.4em] uppercase opacity-70">Neural_Bridge_Terminal_v2.0</div>
           </div>
         </div>
-        
+
         <div className="space-y-2 sm:space-y-3 lg:space-y-4 bg-black/60 p-3 sm:p-6 lg:p-10 border border-stone-800 rounded-xl lg:rounded-2xl min-h-[140px] sm:min-h-[220px] lg:min-h-[340px] flex flex-col justify-end backdrop-blur-xl shadow-2xl relative">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-orange-500/50 to-transparent"></div>
           {logs.map((log, i) => (
@@ -109,8 +109,33 @@ const BootSequence: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   );
 };
 
+import { OnchainKitProvider } from '@coinbase/onchainkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { WagmiProvider } from 'wagmi';
+import { base } from 'wagmi/chains';
+import { config } from './wagmi-config';
+import WalletConnect from './components/WalletConnect';
+
+const queryClient = new QueryClient();
+
 const App: React.FC = () => {
+  return (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <OnchainKitProvider
+          apiKey={import.meta.env.VITE_ONCHAINKIT_API_KEY}
+          chain={base}
+        >
+          <AppContent />
+        </OnchainKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  );
+};
+
+const AppContent: React.FC = () => {
   const [view, setView] = useState<AppState>('boot');
+
   const [playerName, setPlayerName] = useState('OPERATOR_' + Math.floor(Math.random() * 9999));
   const [characterClass, setCharacterClass] = useState<CharacterClass>('STRIKER');
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -119,15 +144,15 @@ const App: React.FC = () => {
   const [gameMode, setGameMode] = useState<GameMode>('mission');
   const [unlockedLevel, setUnlockedLevel] = useState(1);
   const [activeLevelId, setActiveLevelId] = useState(1);
-  const [squad, setSquad] = useState<{name: string, team: 'alpha' | 'bravo'}[]>([]);
+  const [squad, setSquad] = useState<{ name: string, team: 'alpha' | 'bravo' }[]>([]);
   const [mpConfig, setMpConfig] = useState<MPConfig | null>(null);
-  
+
   // Settings State
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [difficultyModifier, setDifficultyModifier] = useState(1);
   const [virtualControlsEnabled, setVirtualControlsEnabled] = useState(false);
 
-  const startCombat = (room: string | null, host: boolean, mode: GameMode, levelId?: number, squadMembers?: {name: string, team: 'alpha' | 'bravo'}[], mpSettings?: MPConfig) => {
+  const startCombat = (room: string | null, host: boolean, mode: GameMode, levelId?: number, squadMembers?: { name: string, team: 'alpha' | 'bravo' }[], mpSettings?: MPConfig) => {
     setRoomId(room);
     setIsHost(host);
     setGameMode(mode);
@@ -157,20 +182,21 @@ const App: React.FC = () => {
   return (
     <div className={`min-h-screen bg-[#050505] text-stone-100 font-mono selection:bg-orange-500/30 overflow-hidden flex flex-col relative`}>
       <VibeAssistant />
+      <WalletConnect />
 
       <main className="relative flex-1 flex flex-col">
         {view === 'boot' && <BootSequence onComplete={() => setView('lobby')} />}
-        
+
         {view === 'lobby' && (
-          <Lobby 
-            playerName={playerName} 
-            setPlayerName={setPlayerName} 
+          <Lobby
+            playerName={playerName}
+            setPlayerName={setPlayerName}
             characterClass={characterClass}
             setCharacterClass={setCharacterClass}
             avatar={avatar}
             unlockedLevel={unlockedLevel}
             missions={MISSIONS}
-            onStart={startCombat} 
+            onStart={startCombat}
             onLabs={() => setView('labs')}
             settings={{
               audioEnabled,
@@ -184,8 +210,8 @@ const App: React.FC = () => {
         )}
 
         {view === 'playing' && (
-          <GameContainer 
-            playerName={playerName} 
+          <GameContainer
+            playerName={playerName}
             characterClass={characterClass}
             avatar={avatar}
             roomId={roomId}
@@ -197,16 +223,16 @@ const App: React.FC = () => {
             audioEnabled={audioEnabled}
             difficultyModifier={difficultyModifier}
             virtualControlsEnabled={virtualControlsEnabled}
-            onExit={() => setView('lobby')} 
+            onExit={() => setView('lobby')}
             onMissionComplete={onMissionComplete}
             onNextLevel={nextLevel}
           />
         )}
 
         {view === 'labs' && (
-          <CreativeSuite 
-            onBack={() => setView('lobby')} 
-            setAvatar={setAvatar} 
+          <CreativeSuite
+            onBack={() => setView('lobby')}
+            setAvatar={setAvatar}
           />
         )}
       </main>
