@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Peer, { DataConnection } from 'peerjs';
 import { GameMode, CharacterClass, MissionConfig, MPMatchMode, MPMap, MPConfig } from '../App';
+import { farcasterActions, useFarcaster } from '../utils/farcaster-sdk.tsx';
 
 interface SquadMember {
   name: string;
@@ -323,6 +324,12 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
             <div className="mt-1 lg:mt-auto pt-2 lg:pt-6 border-t border-stone-800/40">
               <button onClick={onLabs} className="w-full py-2 lg:py-5 bg-stone-950 border border-stone-800 rounded text-[7px] lg:text-[10px] font-black uppercase tracking-widest text-stone-500 hover:text-orange-500 transition-all flex items-center justify-center gap-1.5 lg:gap-3 active:scale-[0.98]">
                 🧬 <span className="hidden sm:inline">Bio_Forge_Terminal</span><span className="sm:hidden">BIO_FORGE</span>
+              </button>
+              <button
+                onClick={() => farcasterActions.composeCast(`🎮 Deployed to the battlefield in Lucky Militia! \n\nSector: ${activeRoom || 'OFFLINE'} \n\nJoin the operation now.`, ["https://lucky-militia.vercel.app"])}
+                className="w-full py-2 lg:py-4 bg-orange-600/10 border border-orange-500/30 rounded text-[7px] lg:text-[10px] font-black uppercase tracking-widest text-orange-500 hover:bg-orange-600 hover:text-white transition-all flex items-center justify-center gap-1.5 lg:gap-3 mt-2"
+              >
+                📡 <span className="hidden sm:inline">BroadCast_Operations</span><span className="sm:hidden">SHARE</span>
               </button>
             </div>
           </div>

@@ -4,6 +4,7 @@ import Phaser from 'phaser';
 import { createGame } from '../game/main';
 import { GameMode, CharacterClass, MissionConfig, MPConfig } from '../App';
 import { WEAPONS_CONFIG } from '../game/scenes/MainScene';
+import { farcasterActions } from '../utils/farcaster-sdk.tsx';
 
 interface Props {
   playerName: string;
@@ -147,6 +148,14 @@ const VictoryOverlay: React.FC<{ kills: number, points: number, onNext: () => vo
         >
           RETURN_TO_COMMAND_HQ
         </button>
+        {!failed && (
+          <button
+            onClick={() => farcasterActions.composeCast(`🎖️ Mission Accomplished in Lucky Militia! \n\nRetired ${kills} units with a score of ${points}. \n\nJoin the operation.`, ["https://lucky-militia.vercel.app"])}
+            className="w-full py-2 lg:py-4 bg-orange-600/20 text-orange-400 font-black text-[9px] lg:text-[10px] uppercase tracking-widest rounded-lg lg:rounded-xl border border-orange-500/30 hover:bg-orange-600 hover:text-white transition-all active:scale-95 mt-2"
+          >
+            SHARE_VICTORY_INTEL
+          </button>
+        )}
       </div>
     </div>
   </div>
