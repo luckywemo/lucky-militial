@@ -112,15 +112,8 @@ const BootSequence: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
 const AppContent: React.FC = () => {
   const { user, isSDKLoaded } = useFarcaster();
 
-  // Update player info when Farcaster user is loaded
-  useEffect(() => {
-    if (user) {
-      if (user.displayName) setPlayerName(user.displayName.toUpperCase());
-      else if (user.username) setPlayerName(user.username.toUpperCase());
-      if (user.pfpUrl) setAvatar(user.pfpUrl);
-    }
-  }, [user]);
   const [view, setView] = useState<AppState>('boot');
+
   const [playerName, setPlayerName] = useState('OPERATOR_' + Math.floor(Math.random() * 9999));
   const [characterClass, setCharacterClass] = useState<CharacterClass>('STRIKER');
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -138,7 +131,14 @@ const AppContent: React.FC = () => {
   const [difficultyModifier, setDifficultyModifier] = useState(1);
   const [virtualControlsEnabled, setVirtualControlsEnabled] = useState(false);
 
-
+  // Update player info when Farcaster user is loaded
+  useEffect(() => {
+    if (user) {
+      if (user.displayName) setPlayerName(user.displayName.toUpperCase());
+      else if (user.username) setPlayerName(user.username.toUpperCase());
+      if (user.pfpUrl) setAvatar(user.pfpUrl);
+    }
+  }, [user]);
 
   const startCombat = (room: string | null, host: boolean, mode: GameMode, levelId?: number, squadMembers?: { name: string, team: 'alpha' | 'bravo' }[], mpSettings?: MPConfig) => {
     setRoomId(room);

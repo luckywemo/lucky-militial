@@ -245,8 +245,16 @@ const FloatingStick: React.FC<{
   );
 };
 
+import { useAccount } from 'wagmi';
+import { useBlockchainStats } from '../utils/blockchain';
+
 const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, roomId, isHost, gameMode, mission, mpConfig, squad, audioEnabled, difficultyModifier, virtualControlsEnabled, onExit, onMissionComplete, onNextLevel }) => {
+  const { address } = useAccount();
+  const { recordKill, recordWin } = useBlockchainStats();
+  const prevKillsRef = useRef(0);
+
   const containerRef = useRef<HTMLDivElement>(null);
+
   const gameRef = useRef<Phaser.Game | null>(null);
   const [stats, setStats] = useState<any>({
     hp: 100, maxHp: 100, shield: 100, ammo: 0, maxAmmo: 0, weaponKey: 'pistol', weaponName: 'SIDEARM', isInfinite: true, abilityCooldown: 0, kills: 0, targetKills: 0, points: 0, teamScores: { alpha: 0, bravo: 0 }, mode: 'MISSION', isOver: false, playerPos: { x: 1000, y: 1000, rotation: 0 }, entities: [], lives: 3, maxLives: 3
@@ -324,6 +332,12 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
     const onComplete = (e: any) => {
       setVictoryData(e.detail);
       onMissionComplete();
+
+      // Record on-chain win if wallet connected and mission was successful
+      if (address && !e.detail.failed) {
+        console.log("RECORDING ON-CHAIN WIN FOR:", address);
+        recordWin(address);
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -393,6 +407,14 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
     const interval = setInterval(() => {
       if ((window as any).gameStats) {
         const newStats = { ...(window as any).gameStats };
+
+        // Record on-chain kill if kills increased and wallet is connected
+        if (address && newStats.kills > prevKillsRef.current) {
+          console.log("RECORDING ON-CHAIN KILL. TOTAL:", newStats.kills);
+          recordKill(address);
+        }
+        prevKillsRef.current = newStats.kills;
+
         if (gameMode === 'mission') {
           console.log('Lives update:', { lives: newStats.lives, maxLives: newStats.maxLives, mission: newStats.mode });
         }
@@ -400,7 +422,7 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
       }
     }, 100);
     return () => clearInterval(interval);
-  }, [gameMode]);
+  }, [gameMode, address, recordKill]);
 
   const playerTeam = squad.find(m => m.name === playerName)?.team || 'alpha';
   const showVirtualControls = virtualControlsEnabled || window.innerWidth < 1024;

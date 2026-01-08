@@ -1,0 +1,17 @@
+{
+    "version": "1",
+    "name": "Lucky Militia",
+    "icon": "https://luckymilitia.xyz/icon.png",
+    "homeUrl": "https://luckymilitia.xyz",
+    "imageUrl": "https://luckymilitia.xyz/og-image.png",
+    "button": {
+        "title": "Play Now",
+        "action": {
+            "type": "launch_frame",
+            "name": "Lucky Militia",
+            "url": "https://luckymilitia.xyz",
+            "splashImageUrl": "https://luckymilitia.xyz/splash.png",
+            "splashBackgroundColor": "#050505"
+        }
+    }
+}

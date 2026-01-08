@@ -1,8 +1,9 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import Peer, { DataConnection } from 'peerjs';
 import { GameMode, CharacterClass, MissionConfig, MPMatchMode, MPMap, MPConfig } from '../App';
 import { farcasterActions, useFarcaster } from '../utils/farcaster-sdk.tsx';
+import Arsenal from './Arsenal';
+import Leaderboard from './Leaderboard';
 
 interface SquadMember {
   name: string;
@@ -64,7 +65,11 @@ const PersonnelCard: React.FC<{ member: SquadMember, isSelf: boolean }> = ({ mem
 };
 
 const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, setCharacterClass, avatar, unlockedLevel, missions, onStart, onLabs, settings }) => {
-  const [tab, setTab] = useState<'missions' | 'multiplayer' | 'controls' | 'settings'>('missions');
+  const [tab, setTab] = useState<'missions' | 'multiplayer' | 'arsenal' | 'leaderboard' | 'controls' | 'settings'>('missions');
+
+  // Hardcode Lab Access (Blockchain logic removed)
+  const hasLabAccess = true;
+
   const [selectedLevelId, setSelectedLevelId] = useState(unlockedLevel);
   const [roomCode, setRoomCode] = useState('');
   const [activeRoom, setActiveRoom] = useState<string | null>(null);
@@ -307,14 +312,21 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
             </div>
 
             <div className="grid grid-cols-4 lg:grid-cols-1 gap-1 lg:gap-2">
-              {(['missions', 'multiplayer', 'controls', 'settings'] as const).map(t => (
+              {(['missions', 'multiplayer', 'arsenal', 'leaderboard', 'controls', 'settings'] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
                   className={`py-2 lg:py-5 px-1 lg:px-8 text-[7px] lg:text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center lg:justify-between rounded border ${tab === t ? 'bg-orange-600 border-orange-400 text-white shadow-xl' : 'bg-stone-950/80 border-stone-800 text-stone-500 hover:text-stone-300'}`}
                 >
                   <span className="flex items-center gap-1 lg:gap-4">
-                    <span className="text-xs lg:text-base">{t === 'missions' && '🗺️'}{t === 'multiplayer' && '📡'}{t === 'controls' && '⌨️'}{t === 'settings' && '⚙️'}</span>
+                    <span className="text-xs lg:text-base">
+                      {t === 'missions' && '🗺️'}
+                      {t === 'multiplayer' && '📡'}
+                      {t === 'arsenal' && '🛡️'}
+                      {t === 'leaderboard' && '🏆'}
+                      {t === 'controls' && '⌨️'}
+                      {t === 'settings' && '⚙️'}
+                    </span>
                     <span className="hidden sm:inline">{t}</span>
                   </span>
                 </button>
@@ -322,8 +334,13 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
             </div>
 
             <div className="mt-1 lg:mt-auto pt-2 lg:pt-6 border-t border-stone-800/40">
-              <button onClick={onLabs} className="w-full py-2 lg:py-5 bg-stone-950 border border-stone-800 rounded text-[7px] lg:text-[10px] font-black uppercase tracking-widest text-stone-500 hover:text-orange-500 transition-all flex items-center justify-center gap-1.5 lg:gap-3 active:scale-[0.98]">
-                🧬 <span className="hidden sm:inline">Bio_Forge_Terminal</span><span className="sm:hidden">BIO_FORGE</span>
+              <button
+                onClick={hasLabAccess ? onLabs : undefined}
+                className={`w-full py-2 lg:py-5 border border-stone-800 rounded text-[7px] lg:text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 lg:gap-3 active:scale-[0.98] ${hasLabAccess ? 'bg-stone-950 text-stone-500 hover:text-orange-500' : 'bg-stone-950/30 text-stone-700 cursor-not-allowed grayscale'}`}
+              >
+                {hasLabAccess ? '🧬' : '🔒'}
+                <span className="hidden sm:inline">{hasLabAccess ? 'Bio_Forge_Terminal' : 'Bio_Forge_Locked'}</span>
+                <span className="sm:hidden">{hasLabAccess ? 'BIO_FORGE' : 'LOCKED'}</span>
               </button>
               <button
                 onClick={() => farcasterActions.composeCast(`🎮 Deployed to the battlefield in Lucky Militia! \n\nSector: ${activeRoom || 'OFFLINE'} \n\nJoin the operation now.`, ["https://lucky-militia.vercel.app"])}
@@ -493,6 +510,14 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
                   </div>
                 </div>
               </div>
+            )}
+
+            {tab === 'arsenal' && (
+              <Arsenal />
+            )}
+
+            {tab === 'leaderboard' && (
+              <Leaderboard />
             )}
 
             {tab === 'controls' && (
