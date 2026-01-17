@@ -7,6 +7,7 @@ import { CONTRACT_ADDRESSES } from '../utils/blockchain';
 import Arsenal from './Arsenal';
 import Leaderboard from './Leaderboard';
 import { parseEther } from 'viem';
+import { isInFarcaster } from '../utils/farcaster';
 
 
 interface SquadMember {
@@ -36,7 +37,7 @@ interface Props {
 }
 
 const CLASS_META: Record<CharacterClass, { desc: string; hp: number; speed: number; armor: number; tech: number; icon: string; color: string }> = {
-  STRIKER: { desc: "Versatile combat specialist.", hp: 120, speed: 100, armor: 60, tech: 40, icon: "🎖️", color: "#f97316" },
+  STRIKER: { desc: "Versatile combat specialist.", hp: 120, speed: 100, armor: 60, tech: 40, icon: "⚔️", color: "#f97316" },
   GHOST: { desc: "Reconnaissance specialist.", hp: 80, speed: 150, armor: 20, tech: 100, icon: "🕶️", color: "#22d3ee" },
   TITAN: { desc: "Heavily armored juggernaut.", hp: 200, speed: 50, armor: 140, tech: 20, icon: "🛡️", color: "#78716c" }
 };
@@ -315,13 +316,22 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
 
           <div className="tactical-panel flex-1 p-2 lg:p-6 bg-stone-900/60 rounded-xl border border-stone-800 flex flex-col gap-2">
             <div className="mb-1">
-              <label className="text-[7px] lg:text-[10px] font-black text-orange-500/70 uppercase tracking-widest mb-1 block">Operator_ID</label>
-              <input
-                value={playerName}
-                onChange={e => setPlayerName(e.target.value.toUpperCase())}
-                className="w-full bg-black/60 border border-stone-800 p-2 lg:p-4 text-xs lg:text-xl font-black text-white outline-none focus:border-orange-500 rounded transition-all shadow-inner"
-                placeholder="CALLSIGN"
-              />
+              <label className="text-[7px] lg:text-[10px] font-black text-orange-500/70 uppercase tracking-widest mb-1 block flex items-center gap-2">
+                Operator_ID
+                {isInFarcaster() && <span className="text-[6px] text-purple-400">🟣 Farcaster</span>}
+                {!isInFarcaster() && address && <span className="text-[6px] text-cyan-400">🔗 Web3</span>}
+              </label>
+              <div className="w-full bg-black/60 border border-stone-800 p-2 lg:p-4 text-xs lg:text-xl font-black text-white rounded shadow-inner flex items-center justify-between">
+                <span className="truncate">{playerName}</span>
+                {address && (
+                  <span className="text-[8px] text-stone-600 ml-2 flex-shrink-0">VERIFIED</span>
+                )}
+              </div>
+              {address && (
+                <p className="text-[6px] lg:text-[8px] text-stone-600 mt-1 font-bold uppercase italic">
+                  Identity resolved from {isInFarcaster() ? 'Farcaster' : playerName.includes('.') ? 'Basename/ENS' : 'Wallet Address'}
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-4 lg:grid-cols-1 gap-1 lg:gap-2">

@@ -1,24 +1,40 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useReadContract, useAccount } from 'wagmi';
 import { CONTRACT_ADDRESSES } from '../utils/blockchain';
+import { Transaction, TransactionButton, TransactionStatus, TransactionStatusLabel, TransactionStatusAction } from '@coinbase/onchainkit/transaction';
+import { createMintSkinCall, SKINS_ABI } from '../utils/transaction-calls';
 
-// Mock ABI for tokensOfOwner (we'll use the full one in production)
-const SKINS_ABI = [
-    { name: 'tokensOfOwner', type: 'function', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }], outputs: [{ name: '', type: 'uint256[]' }] },
-    { name: 'getSkinMetadata', type: 'function', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ name: '', type: 'tuple', components: [{ name: 'weaponType', type: 'string' }, { name: 'rarity', type: 'string' }, { name: 'powerBoost', type: 'uint256' }] }] },
-] as const;
+type WeaponType = 'pistol' | 'smg' | 'shotgun' | 'railgun';
+type Rarity = 'common' | 'rare' | 'legendary';
 
 export default function Arsenal() {
     const { address } = useAccount();
+    const [selectedWeapon, setSelectedWeapon] = useState<WeaponType>('pistol');
+    const [selectedRarity, setSelectedRarity] = useState<Rarity>('common');
 
-    const { data: tokenIds, isLoading: listLoading } = useReadContract({
+    const { data: tokenIds, isLoading: listLoading, refetch } = useReadContract({
         address: CONTRACT_ADDRESSES.SKINS as `0x${string}`,
         abi: SKINS_ABI,
         functionName: 'tokensOfOwner',
         args: address ? [address as `0x${string}`] : undefined,
         query: { enabled: !!address },
     });
+
+    const mintCalls = address ? [createMintSkinCall(selectedWeapon, selectedRarity)] : [];
+
+    const weaponOptions: { type: WeaponType; icon: string; label: string }[] = [
+        { type: 'pistol', icon: '🔫', label: 'PISTOL' },
+        { type: 'smg', icon: '⚔️', label: 'SMG' },
+        { type: 'shotgun', icon: '🔥', label: 'SHOTGUN' },
+        { type: 'railgun', icon: '⚡', label: 'RAILGUN' },
+    ];
+
+    const rarityOptions: { rarity: Rarity; label: string; color: string }[] = [
+        { rarity: 'common', label: 'COMMON', color: 'text-stone-400' },
+        { rarity: 'rare', label: 'RARE', color: 'text-cyan-400' },
+        { rarity: 'legendary', label: 'LEGENDARY', color: 'text-orange-500' },
+    ];
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -32,6 +48,73 @@ export default function Arsenal() {
                 </p>
             </div>
 
+            {/* Mint Skin Section */}
+            {address && (
+                <div className="p-6 bg-gradient-to-br from-orange-500/10 to-cyan-500/10 border border-orange-500/30 rounded-xl">
+                    <h4 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span>⚡</span> FORGE_NEW_SKIN
+                    </h4>
+
+                    {/* Weapon Selection */}
+                    <div className="mb-4">
+                        <label className="text-[10px] font-black text-stone-400 uppercase tracking-wider mb-2 block">
+                            Weapon_Type
+                        </label>
+                        <div className="grid grid-cols-4 gap-2">
+                            {weaponOptions.map(({ type, icon, label }) => (
+                                <button
+                                    key={type}
+                                    onClick={() => setSelectedWeapon(type)}
+                                    className={`p-3 rounded-lg border-2 transition-all ${selectedWeapon === type
+                                            ? 'border-orange-500 bg-orange-500/20'
+                                            : 'border-stone-700 bg-stone-900/40 hover:border-stone-600'
+                                        }`}
+                                >
+                                    <div className="text-2xl mb-1">{icon}</div>
+                                    <div className="text-[8px] font-black text-white">{label}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Rarity Selection */}
+                    <div className="mb-4">
+                        <label className="text-[10px] font-black text-stone-400 uppercase tracking-wider mb-2 block">
+                            Rarity_Class
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {rarityOptions.map(({ rarity, label, color }) => (
+                                <button
+                                    key={rarity}
+                                    onClick={() => setSelectedRarity(rarity)}
+                                    className={`p-2 rounded-lg border-2 transition-all ${selectedRarity === rarity
+                                            ? 'border-orange-500 bg-orange-500/20'
+                                            : 'border-stone-700 bg-stone-900/40 hover:border-stone-600'
+                                        }`}
+                                >
+                                    <div className={`text-[10px] font-black ${color}`}>{label}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Transaction Component */}
+                    <Transaction
+                        calls={mintCalls}
+                        onSuccess={() => {
+                            refetch();
+                        }}
+                    >
+                        <TransactionButton className="w-full bg-orange-600 hover:bg-orange-700 text-white font-black py-3 px-6 rounded-lg shadow-[0_0_20px_rgba(249,115,22,0.4)] border border-white/20 transition-all uppercase tracking-widest text-xs" />
+                        <TransactionStatus>
+                            <TransactionStatusLabel />
+                            <TransactionStatusAction />
+                        </TransactionStatus>
+                    </Transaction>
+                </div>
+            )}
+
+            {/* Inventory Display */}
             {!address ? (
                 <div className="text-center p-12 bg-black/40 border border-dashed border-stone-800 rounded-xl">
                     <div className="text-4xl mb-4">📡</div>
@@ -53,7 +136,7 @@ export default function Arsenal() {
                 <div className="text-center p-12 bg-black/40 border border-dashed border-stone-800 rounded-xl">
                     <div className="text-4xl mb-4">📦</div>
                     <div className="text-sm font-black text-stone-600 uppercase">Inventory_Empty</div>
-                    <p className="text-[10px] text-stone-700 mt-2 font-bold uppercase italic">Commence combat missions to earn tactical skins</p>
+                    <p className="text-[10px] text-stone-700 mt-2 font-bold uppercase italic">Use the forge above to mint your first tactical skin</p>
                 </div>
             )}
         </div>

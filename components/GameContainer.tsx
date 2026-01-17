@@ -99,8 +99,8 @@ const Minimap: React.FC<{ playerPos: { x: number, y: number, rotation: number },
 const VictoryOverlay: React.FC<{ kills: number, points: number, onNext: () => void, onExit: () => void, isMP?: boolean, winner?: string, failed?: boolean }> = ({ kills, points, onNext, onExit, isMP, winner, failed }) => (
   <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-4 lg:p-8 z-[5000] animate-in fade-in duration-700">
     <div className={`tactical-panel max-w-lg w-full p-6 lg:p-12 bg-stone-900 border-2 ${failed ? 'border-red-600' : 'border-orange-500'} rounded-2xl lg:rounded-3xl text-center shadow-[0_0_100px_rgba(249,115,22,0.3)]`}>
-      <div className="mission-pulse mb-4 lg:mb-8 relative h-14 w-14 lg:h-20 lg:w-20 mx-auto">
-        <div className="absolute inset-0 flex items-center justify-center text-2xl lg:text-4xl">{failed ? '💀' : '🎖️'}</div>
+      <div className="mission-pulse mb-4 lg:mb-8 relative h-14 w-14 lg:h-20 lg:w-20 mx-auto bg-orange-600 rounded-lg overflow-hidden flex items-center justify-center shadow-[0_0_50px_rgba(249,115,22,0.6)]">
+        <div className="absolute inset-0 flex items-center justify-center">{failed ? '💀' : <img src="/logo.jpg" alt="Victory" className="w-full h-full object-cover" />}</div>
       </div>
       <h2 className={`text-xl sm:text-2xl lg:text-4xl font-black font-stencil uppercase italic mb-2 tracking-wider lg:tracking-widest drop-shadow-[0_0_20px_rgba(255,255,255,0.4)] ${failed ? 'text-red-500' : 'text-white'}`}>
         {failed ? 'MISSION_FAILED' : (isMP ? `${winner}_VICTORY` : 'MISSION_COMPLETE')}
@@ -428,8 +428,8 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
           <div className="w-full max-w-md space-y-4 lg:space-y-8">
             {/* Logo */}
             <div className="flex items-center justify-center gap-3 lg:gap-4 mb-6 lg:mb-12">
-              <div className="w-10 h-10 lg:w-16 lg:h-16 bg-orange-600 rounded-lg flex items-center justify-center animate-pulse shadow-[0_0_40px_rgba(249,115,22,0.5)]">
-                <span className="text-xl lg:text-3xl">🎖️</span>
+              <div className="w-10 h-10 lg:w-16 lg:h-16 bg-orange-600 rounded-lg flex items-center justify-center animate-pulse shadow-[0_0_40px_rgba(249,115,22,0.5)] overflow-hidden">
+                <img src="/logo.jpg" alt="Lucky Militia" className="w-full h-full object-cover" />
               </div>
               <div>
                 <div className="text-orange-500 text-[10px] lg:text-sm font-black tracking-[0.3em] lg:tracking-[0.5em] uppercase">LUCKY_MILITIA</div>

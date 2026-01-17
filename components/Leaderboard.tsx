@@ -1,15 +1,23 @@
 
-import React from 'react';
-import { useReadContract } from 'wagmi';
+import React, { useState } from 'react';
+import { useReadContract, useAccount } from 'wagmi';
 import { CONTRACT_ADDRESSES } from '../utils/blockchain';
+import { Transaction, TransactionButton, TransactionStatus, TransactionStatusLabel, TransactionStatusAction } from '@coinbase/onchainkit/transaction';
+import { createSyncStatsCall } from '../utils/transaction-calls';
 
 const LEADERBOARD_ABI = [
     { name: 'getOperatorStats', type: 'function', stateMutability: 'view', inputs: [{ name: 'operator', type: 'address' }], outputs: [{ name: '', type: 'tuple', components: [{ name: 'kills', type: 'uint256' }, { name: 'wins', type: 'uint256' }, { name: 'gamesPlayed', type: 'uint256' }, { name: 'lastCombatTime', type: 'uint256' }] }] },
 ] as const;
 
 export default function Leaderboard() {
+    const { address } = useAccount();
+    const [kills, setKills] = useState(0);
+    const [wins, setWins] = useState(0);
+
     // In a real app, we'd fetch a list of top addresses from an indexer or events
     // For now, we'll show a "TOP OPERATORS" layout with placeholders or the connected user
+
+    const syncCalls = address ? [createSyncStatsCall(address as `0x${string}`, kills, wins, true)] : [];
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -45,6 +53,53 @@ export default function Leaderboard() {
                     </div>
                 ))}
             </div>
+
+            {/* Sync Stats Section */}
+            {address && (
+                <div className="p-6 bg-gradient-to-br from-cyan-500/10 to-orange-500/10 border border-cyan-500/30 rounded-xl">
+                    <h4 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span>📡</span> SYNC_COMBAT_STATS
+                    </h4>
+                    <p className="text-[10px] text-stone-400 mb-4 font-bold uppercase">
+                        Manually synchronize your combat statistics to the blockchain
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label className="text-[10px] font-black text-stone-400 uppercase tracking-wider mb-2 block">
+                                Kills
+                            </label>
+                            <input
+                                type="number"
+                                value={kills}
+                                onChange={(e) => setKills(parseInt(e.target.value) || 0)}
+                                className="w-full bg-stone-900/60 border border-stone-700 rounded-lg px-3 py-2 text-white font-bold text-sm focus:border-cyan-500 focus:outline-none"
+                                placeholder="0"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-stone-400 uppercase tracking-wider mb-2 block">
+                                Wins
+                            </label>
+                            <input
+                                type="number"
+                                value={wins}
+                                onChange={(e) => setWins(parseInt(e.target.value) || 0)}
+                                className="w-full bg-stone-900/60 border border-stone-700 rounded-lg px-3 py-2 text-white font-bold text-sm focus:border-cyan-500 focus:outline-none"
+                                placeholder="0"
+                            />
+                        </div>
+                    </div>
+
+                    <Transaction calls={syncCalls}>
+                        <TransactionButton className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-black py-3 px-6 rounded-lg shadow-[0_0_20px_rgba(34,211,238,0.4)] border border-white/20 transition-all uppercase tracking-widest text-xs" />
+                        <TransactionStatus>
+                            <TransactionStatusLabel />
+                            <TransactionStatusAction />
+                        </TransactionStatus>
+                    </Transaction>
+                </div>
+            )}
 
             <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-lg text-center">
                 <p className="text-[8px] text-orange-500/60 font-black uppercase italic">
