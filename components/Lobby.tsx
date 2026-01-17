@@ -327,11 +327,6 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
                   <span className="text-[8px] text-stone-600 ml-2 flex-shrink-0">VERIFIED</span>
                 )}
               </div>
-              {address && (
-                <p className="text-[6px] lg:text-[8px] text-stone-600 mt-1 font-bold uppercase italic">
-                  Identity resolved from {isInFarcaster() ? 'Farcaster' : playerName.includes('.') ? 'Basename/ENS' : 'Wallet Address'}
-                </p>
-              )}
             </div>
 
             <div className="grid grid-cols-4 lg:grid-cols-1 gap-1 lg:gap-2">

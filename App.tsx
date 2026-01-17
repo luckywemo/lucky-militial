@@ -239,7 +239,14 @@ const AppContent: React.FC = () => {
   // Use Farcaster username if available, then Basename/ENS, otherwise generate random operator ID
   const [fallbackId] = useState('OPERATOR_' + Math.floor(Math.random() * 9999));
   const farcasterName = isInFarcaster() ? getFarcasterDisplayName() : null;
-  const playerName = farcasterName || nameData || fallbackId;
+  // useName returns an object, extract the name property
+  const resolvedName = nameData && typeof nameData === 'object' ? (nameData as any).name : nameData;
+
+  // Ensure we only use string values (not Proxy/Function objects)
+  const validFarcasterName = (typeof farcasterName === 'string' && farcasterName) ? farcasterName : null;
+  const validResolvedName = (typeof resolvedName === 'string' && resolvedName) ? resolvedName : null;
+  const playerName = validFarcasterName || validResolvedName || fallbackId;
+
   const setPlayerName = () => { }; // Keep for compatibility, but name comes from identity now
 
   const [characterClass, setCharacterClass] = useState<CharacterClass>('STRIKER');
