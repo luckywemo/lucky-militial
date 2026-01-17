@@ -176,9 +176,28 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
     setStatusMsg('TRANSMITTING...');
 
     peerRef.current = new Peer(`LM-SCTR-${code}`);
-    peerRef.current.on('open', () => setStatusMsg('BROADCASTING'));
+
+    // Add error handler for host
+    peerRef.current.on('error', (err) => {
+      console.error('[Multiplayer] Host error:', err);
+      setStatusMsg('CONNECTION_ERROR');
+    });
+
+    peerRef.current.on('open', (id) => {
+      console.log('[Multiplayer] Host ready:', id);
+      setStatusMsg('BROADCASTING');
+    });
+
     peerRef.current.on('connection', (conn) => {
+      console.log('[Multiplayer] New connection from:', conn.peer);
+
+      // Add error handler for individual connections
+      conn.on('error', (err) => {
+        console.error('[Multiplayer] Connection error with', conn.peer, ':', err);
+      });
+
       conn.on('open', () => {
+        console.log('[Multiplayer] Connection opened with:', conn.peer);
         connections.current.push(conn);
         conn.send({
           type: 'welcome',
@@ -188,15 +207,20 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
       });
 
       conn.on('data', (data: any) => {
+        console.log('[Multiplayer] Received data:', data.type, 'from', conn.peer);
+
         if (data.type === 'join') {
+          console.log('[Multiplayer] Player joining:', data.name, 'Team:', data.team, 'ID:', conn.peer);
           setSquad((prev) => {
             const filtered = prev.filter(m => m.id !== conn.peer);
             const next = [...filtered, { name: data.name, team: data.team, id: conn.peer }];
+            console.log('[Multiplayer] Updated squad:', next);
             broadcastSquad(next);
             return next;
           });
         }
         if (data.type === 'switch_team') {
+          console.log('[Multiplayer] Player switching team:', conn.peer, 'to', data.team);
           setSquad((prev) => {
             const next = prev.map(m => m.id === conn.peer ? { ...m, team: data.team } : m);
             broadcastSquad(next);
@@ -204,6 +228,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
           });
         }
         if (data.type === 'update_name') {
+          console.log('[Multiplayer] Player updating name:', conn.peer, 'to', data.name);
           setSquad((prev) => {
             const next = prev.map(m => m.id === conn.peer ? { ...m, name: data.name } : m);
             broadcastSquad(next);
@@ -213,6 +238,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
       });
 
       conn.on('close', () => {
+        console.log('[Multiplayer] Connection closed with:', conn.peer);
         connections.current = connections.current.filter(c => c !== conn);
         setSquad(prev => {
           const next = prev.filter(m => m.id !== conn.peer);
@@ -230,15 +256,36 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
     setStatusMsg('LINKING...');
 
     peerRef.current = new Peer();
-    peerRef.current.on('open', () => {
+
+    // Add error handler for client
+    peerRef.current.on('error', (err) => {
+      console.error('[Multiplayer] Client error:', err);
+      setStatusMsg('CONNECTION_FAILED');
+    });
+
+    peerRef.current.on('open', (id) => {
+      console.log('[Multiplayer] Client ready:', id);
       const conn = peerRef.current!.connect(`LM-SCTR-${roomCode}`);
+
+      // Add error handler for connection
+      conn.on('error', (err) => {
+        console.error('[Multiplayer] Connection error:', err);
+        setStatusMsg('CONNECTION_FAILED');
+      });
+
       conn.on('open', () => {
+        console.log('[Multiplayer] Connected to host:', `LM-SCTR-${roomCode}`);
         connections.current = [conn];
         setStatusMsg('CONNECTED');
+        console.log('[Multiplayer] Sending join request:', { name: playerName, team: 'bravo' });
         conn.send({ type: 'join', name: playerName, team: 'bravo' });
       });
+
       conn.on('data', (data: any) => {
+        console.log('[Multiplayer] Received data from host:', data.type);
+
         if (data.type === 'sync_squad' || data.type === 'welcome') {
+          console.log('[Multiplayer] Squad update received:', data.squad);
           setSquad(data.squad);
           if (data.settings) {
             setMpMatchMode(data.settings.mpMatchMode);
@@ -249,6 +296,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
           }
         }
         if (data.type === 'start') {
+          console.log('[Multiplayer] Game starting with squad:', data.squad);
           onStart(roomCode, false, 'multiplayer', undefined, data.squad, data.mpConfig);
         }
         if (data.type === 'update_name') {
@@ -257,7 +305,9 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
           });
         }
       });
+
       conn.on('close', () => {
+        console.log('[Multiplayer] Disconnected from host');
         setStatusMsg('DISCONNECTED');
         setActiveRoom(null);
       });
@@ -441,6 +491,17 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
 
             {tab === 'multiplayer' && activeRoom && (
               <div className="flex flex-col gap-3 lg:gap-6 h-full">
+                {/* Connection Status Indicator */}
+                <div className="bg-black/40 border border-stone-800 rounded-lg p-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#22c55e]"></div>
+                    <span className="text-[9px] lg:text-xs font-black text-green-500 uppercase tracking-wider">Connected</span>
+                  </div>
+                  <div className="text-[9px] lg:text-xs font-black text-stone-400 uppercase tracking-wider">
+                    Players: <span className="text-white">{squad.length}</span>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2 lg:gap-4">
                   <div className="bg-stone-900/40 border border-stone-800 rounded p-2 lg:p-4 flex items-center gap-2">
                     <div className="text-lg lg:text-3xl">{MAP_META[mpMap].icon}</div>
