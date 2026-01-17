@@ -1,0 +1,21 @@
+{
+    "accountAssociation": {
+        "header": "eyJmaWQiOjEyMzQ1LCJ0eXBlIjoiY3VzdG9keSIsImtleSI6IjB4MTIzNDU2Nzg5MGFiY2RlZiJ9",
+        "payload": "eyJkb21haW4iOiJsdWNreS1taWxpdGlhLnZlcmNlbC5hcHAifQ",
+        "signature": "MHg5ODc2NTQzMjEwZmVkY2JhMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVm"
+    },
+    "miniApp": {
+        "name": "Lucky Militia",
+        "version": "1.0.0",
+        "description": "Tactical multiplayer top-down shooter with AI-powered features",
+        "icon": "https://lucky-militia.vercel.app/favicon.ico",
+        "splashImage": "https://lucky-militia.vercel.app/favicon.ico",
+        "splashBackgroundColor": "#050505",
+        "homeUrl": "https://lucky-militia.vercel.app/"
+    },
+    "permissions": [
+        "context",
+        "composeCast",
+        "wallet"
+    ]
+}
