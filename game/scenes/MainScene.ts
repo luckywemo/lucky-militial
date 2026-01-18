@@ -118,9 +118,6 @@ export class MainScene extends Phaser.Scene {
     this.roomId = data.roomId;
     this.isHost = data.isHost;
 
-    const seed = this.mpConfig?.mapSeed || Math.random().toString();
-    this.seededRnd = new Phaser.Math.RandomDataGenerator([seed]);
-
     if (data.squad) {
       const myMember = data.squad.find((m: any) => m.name === this.playerName);
       if (myMember) this.playerTeam = myMember.team;
@@ -176,6 +173,9 @@ export class MainScene extends Phaser.Scene {
     this.setupEmitters();
     this.setupPhysics();
     this.loadAudioAsync();
+
+    // Initialize 5-second safe zone at battle start
+    this.safeZoneTimer = 5000;
 
     if (this.roomId) this.initMultiplayer();
 
@@ -583,7 +583,10 @@ export class MainScene extends Phaser.Scene {
       .setData('hp', baseHp)
       .setData('team', team)
       .setData('lastShot', 0)
-      .setData('weaponKey', 'pistol');
+      .setData('weaponKey', 'pistol')
+      .setData('currentTarget', null)
+      .setData('targetAcquiredTime', 0)
+      .setData('reactionDelay', Phaser.Math.Between(300, 800) / this.difficultyModifier);
     bot.body.setCircle(22, 10, 10);
 
     const teamColor = team === 'alpha' ? 0xf97316 : 0x22d3ee;
@@ -607,7 +610,10 @@ export class MainScene extends Phaser.Scene {
       .setData('maxHp', baseHp)
       .setData('hp', baseHp)
       .setData('lastShot', 0)
-      .setData('weaponKey', 'pistol');
+      .setData('weaponKey', 'pistol')
+      .setData('currentTarget', null)
+      .setData('targetAcquiredTime', 0)
+      .setData('reactionDelay', Phaser.Math.Between(300, 800) / this.difficultyModifier);
     bot.body.setCircle(22, 10, 10);
 
     const teamColor = data.team === 'alpha' ? 0xf97316 : 0x22d3ee;
@@ -631,6 +637,23 @@ export class MainScene extends Phaser.Scene {
       }
     });
   }
+
+  private hasLineOfSight(fromX: number, fromY: number, toX: number, toY: number): boolean {
+    // Create a line from bot to target
+    const ray = new Phaser.Geom.Line(fromX, fromY, toX, toY);
+    const walls = this.walls.getChildren();
+
+    // Check if ray intersects any wall
+    for (const wall of walls) {
+      const wallSprite = wall as Phaser.Physics.Arcade.Sprite;
+      const wallBounds = wallSprite.getBounds();
+      if (Phaser.Geom.Intersects.LineToRectangle(ray, wallBounds)) {
+        return false; // Wall blocks line of sight
+      }
+    }
+    return true; // Clear line of sight
+  }
+
 
   private updateAIBots(time: number) {
     if (!this.isHost) return;
@@ -744,13 +767,51 @@ export class MainScene extends Phaser.Scene {
         const aimAngle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
         bot.rotation = aimAngle;
 
-        // 8. SHOOTING
+        // 8. INTELLIGENT SHOOTING
         const delay = Math.max(0.8, 2.5 / this.difficultyModifier);
         if (time > bot.getData('lastShot') + wConfig.fireRate * delay) {
-          // Only shoot if target is in reasonable range and not retreating
-          if (minDist < 700 && healthPercent > 0.2) {
+          // Check if we have line of sight to target
+          const hasLOS = this.hasLineOfSight(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
+
+          // Track target changes and reaction time
+          const currentTarget = bot.getData('currentTarget');
+          const targetId = nearestTarget.getData ? nearestTarget.getData('id') : 'player';
+
+          if (currentTarget !== targetId) {
+            // New target acquired - set reaction delay
+            bot.setData('currentTarget', targetId);
+            bot.setData('targetAcquiredTime', time);
+          }
+
+          const timeSinceAcquired = time - bot.getData('targetAcquiredTime');
+          const reactionDelay = bot.getData('reactionDelay');
+
+          // Only shoot if:
+          // 1. Target is in range
+          // 2. Bot has line of sight
+          // 3. Bot is not retreating (health > 20%)
+          // 4. Reaction delay has passed
+          // 5. Target is not in safe zone (first 5 seconds of battle)
+          const targetInSafeZone = this.safeZoneTimer > 0 && targetId === 'player';
+
+          if (minDist < 700 &&
+            healthPercent > 0.2 &&
+            hasLOS &&
+            timeSinceAcquired > reactionDelay &&
+            !targetInSafeZone) {
+
+            // Calculate aim error based on distance and difficulty
+            // Closer targets = more accurate, higher difficulty = more accurate
+            const baseAimError = (minDist / 700) * 0.4; // 0 to 0.4 radians based on distance
+            const difficultyFactor = 1 - (this.difficultyModifier - 1) * 0.3; // Reduce error on higher difficulty
+            const aimError = baseAimError * difficultyFactor;
+
+            // Apply aim error to each bullet
             for (let i = 0; i < wConfig.bullets; i++) {
-              this.spawnBullet(bot.x, bot.y, aimAngle + (Math.random() - 0.5) * wConfig.spread, wConfig.key, 'bot', team);
+              const spreadError = (Math.random() - 0.5) * wConfig.spread;
+              const accuracyError = (Math.random() - 0.5) * aimError;
+              const finalAngle = aimAngle + spreadError + accuracyError;
+              this.spawnBullet(bot.x, bot.y, finalAngle, wConfig.key, 'bot', team);
             }
             bot.setData('lastShot', time);
             this.playSound(wConfig.category === 'pistol' ? 'sfx_pistol' : 'sfx_shotgun', 0.1);
