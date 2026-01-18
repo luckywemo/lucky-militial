@@ -5,5 +5,6 @@
     "icon": "https://luckymilitia.xyz/icon.png",
     "splashImage": "https://luckymilitia.xyz/splash.png",
     "homeUrl": "https://luckymilitia.xyz",
-    "imageUrl": "https://luckymilitia.xyz/og-image.png"
+    "imageUrl": "https://luckymilitia.xyz/og-image.png",
+    "orientation": "landscape"
 }

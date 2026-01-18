@@ -256,67 +256,6 @@
         transform: translate(0);
       }
     }
-
-    /* Landscape Orientation Lock */
-    #rotate-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 99999;
-      background: #050505;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 24px;
-      text-align: center;
-      padding: 32px;
-    }
-
-    #rotate-overlay .rotate-icon {
-      font-size: 64px;
-      animation: rotate-hint 2s ease-in-out infinite;
-    }
-
-    @keyframes rotate-hint {
-
-      0%,
-      100% {
-        transform: rotate(0deg);
-      }
-
-      25% {
-        transform: rotate(-15deg);
-      }
-
-      75% {
-        transform: rotate(15deg);
-      }
-    }
-
-    #rotate-overlay h2 {
-      font-family: 'Stardos Stencil', cursive;
-      font-size: 24px;
-      color: #f97316;
-      text-transform: uppercase;
-      letter-spacing: 0.3em;
-    }
-
-    #rotate-overlay p {
-      font-size: 12px;
-      color: #78716c;
-      max-width: 280px;
-    }
-
-    /* Show overlay only in portrait on mobile */
-    @media screen and (orientation: portrait) and (max-width: 1024px) {
-      #rotate-overlay {
-        display: flex;
-      }
-
-      #root {
-        display: none;
-      }
-    }
   </style>
   <script type="importmap">
     {
@@ -333,17 +272,6 @@
 </head>
 
 <body class="bg-black">
-  <!-- Rotate Device Overlay -->
-  <div id="rotate-overlay">
-    <div class="rotate-icon">📱</div>
-    <h2>Rotate Device</h2>
-    <p>Lucky Militia requires landscape orientation for optimal tactical operations.</p>
-    <div style="display: flex; align-items: center; gap: 8px; color: #78716c; font-size: 10px;">
-      <span>🔄</span>
-      <span>TURN YOUR DEVICE SIDEWAYS</span>
-    </div>
-  </div>
-
   <div class="noise"></div>
   <div class="scanline-overlay"></div>
   <div class="visor-mask"></div>
