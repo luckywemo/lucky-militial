@@ -245,9 +245,15 @@ const AppContent: React.FC = () => {
   // Ensure we only use string values (not Proxy/Function objects)
   const validFarcasterName = (typeof farcasterName === 'string' && farcasterName) ? farcasterName : null;
   const validResolvedName = (typeof resolvedName === 'string' && resolvedName) ? resolvedName : null;
-  const playerName = validFarcasterName || validResolvedName || fallbackId;
 
-  const setPlayerName = () => { }; // Keep for compatibility, but name comes from identity now
+  // Make playerName mutable state that initializes from Web3 identities
+  const [playerName, setPlayerName] = useState(validFarcasterName || validResolvedName || fallbackId);
+
+  // Update playerName when Web3 identity resolves
+  useEffect(() => {
+    const newName = validFarcasterName || validResolvedName || fallbackId;
+    setPlayerName(newName);
+  }, [validFarcasterName, validResolvedName, fallbackId]);
 
   const [characterClass, setCharacterClass] = useState<CharacterClass>('STRIKER');
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -264,12 +270,10 @@ const AppContent: React.FC = () => {
   const [difficultyModifier, setDifficultyModifier] = useState(1);
   const [virtualControlsEnabled, setVirtualControlsEnabled] = useState(false);
 
-  // Initialize Farcaster SDK after boot sequence completes
+  // Initialize Farcaster SDK immediately on app mount
   useEffect(() => {
-    if (view === 'lobby') {
-      initializeFarcaster().catch(console.error);
-    }
-  }, [view]);
+    initializeFarcaster().catch(console.error);
+  }, []);
 
   const startCombat = (room: string | null, host: boolean, mode: GameMode, levelId?: number, squadMembers?: { name: string, team: 'alpha' | 'bravo' }[], mpSettings?: MPConfig) => {
     setRoomId(room);
