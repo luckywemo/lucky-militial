@@ -66,8 +66,8 @@ export default function Arsenal() {
                                     key={type}
                                     onClick={() => setSelectedWeapon(type)}
                                     className={`p-3 rounded-lg border-2 transition-all ${selectedWeapon === type
-                                            ? 'border-orange-500 bg-orange-500/20'
-                                            : 'border-stone-700 bg-stone-900/40 hover:border-stone-600'
+                                        ? 'border-orange-500 bg-orange-500/20'
+                                        : 'border-stone-700 bg-stone-900/40 hover:border-stone-600'
                                         }`}
                                 >
                                     <div className="text-2xl mb-1">{icon}</div>
@@ -88,8 +88,8 @@ export default function Arsenal() {
                                     key={rarity}
                                     onClick={() => setSelectedRarity(rarity)}
                                     className={`p-2 rounded-lg border-2 transition-all ${selectedRarity === rarity
-                                            ? 'border-orange-500 bg-orange-500/20'
-                                            : 'border-stone-700 bg-stone-900/40 hover:border-stone-600'
+                                        ? 'border-orange-500 bg-orange-500/20'
+                                        : 'border-stone-700 bg-stone-900/40 hover:border-stone-600'
                                         }`}
                                 >
                                     <div className={`text-[10px] font-black ${color}`}>{label}</div>
@@ -100,6 +100,7 @@ export default function Arsenal() {
 
                     {/* Transaction Component */}
                     <Transaction
+                        chainId={8453}
                         calls={mintCalls}
                         onSuccess={() => {
                             refetch();

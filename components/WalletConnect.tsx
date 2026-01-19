@@ -11,7 +11,7 @@ import {
 import { useAccount } from 'wagmi';
 
 export default function WalletConnect() {
-    const { isConnected } = useAccount();
+    const { isConnected, address } = useAccount();
 
     return (
         <div className="fixed top-4 right-4 z-[60] flex items-center gap-4">
@@ -22,9 +22,9 @@ export default function WalletConnect() {
                 </ConnectWallet>
             </Wallet>
 
-            {isConnected && (
+            {isConnected && address && (
                 <div className="hidden lg:flex flex-col items-end bg-black/60 backdrop-blur-md border border-stone-800 p-2 rounded-lg">
-                    <EthBalance className="text-cyan-400 text-[10px] font-bold" />
+                    <EthBalance address={address} className="text-cyan-400 text-[10px] font-bold" />
                 </div>
             )}
         </div>

@@ -91,7 +91,7 @@ export default function Leaderboard() {
                         </div>
                     </div>
 
-                    <Transaction calls={syncCalls}>
+                    <Transaction chainId={8453} calls={syncCalls}>
                         <TransactionButton className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-black py-3 px-6 rounded-lg shadow-[0_0_20px_rgba(34,211,238,0.4)] border border-white/20 transition-all uppercase tracking-widest text-xs" />
                         <TransactionStatus>
                             <TransactionStatusLabel />
