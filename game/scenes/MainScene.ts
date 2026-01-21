@@ -143,6 +143,9 @@ export class MainScene extends Phaser.Scene {
   create() {
     window.dispatchEvent(new CustomEvent('SCENE_READY'));
 
+    // Initialize seeded random for consistent map generation
+    this.seededRnd = new Phaser.Math.RandomDataGenerator([this.roomId || 'mission-seed']);
+
     this.physics.world.setBounds(0, 0, 2000, 2000);
     this.setupTextures();
     this.add.grid(1000, 1000, 2000, 2000, 256, 256, 0x0a0a0a, 1, 0x1a1a1a, 0.5).setDepth(-10);
