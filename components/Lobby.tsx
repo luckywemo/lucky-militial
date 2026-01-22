@@ -8,6 +8,8 @@ import Arsenal from './Arsenal';
 import Leaderboard from './Leaderboard';
 import { parseEther } from 'viem';
 import { isInFarcaster } from '../utils/farcaster';
+import ProfileDashboard from './ProfileDashboard';
+
 
 // PeerJS Configuration - Auto-detect localhost for local testing
 const isLocalhost = typeof window !== 'undefined' &&
@@ -95,7 +97,7 @@ const PersonnelCard: React.FC<{ member: SquadMember, isSelf: boolean }> = ({ mem
 };
 
 const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, setCharacterClass, avatar, unlockedLevel, missions, onStart, onLabs, settings }) => {
-  const [tab, setTab] = useState<'missions' | 'multiplayer' | 'arsenal' | 'leaderboard' | 'controls' | 'settings'>('missions');
+  const [tab, setTab] = useState<'profile' | 'missions' | 'multiplayer' | 'arsenal' | 'leaderboard' | 'controls' | 'settings'>('profile');
   const { address } = useAccount();
 
   // Token gating check for Bio-Forge (Labs)
@@ -431,7 +433,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
             </div>
 
             <div className="grid grid-cols-4 lg:grid-cols-1 gap-1 lg:gap-2">
-              {(['missions', 'multiplayer', 'arsenal', 'leaderboard', 'controls', 'settings'] as const).map(t => (
+              {(['profile', 'missions', 'multiplayer', 'arsenal', 'leaderboard', 'controls', 'settings'] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -439,6 +441,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
                 >
                   <span className="flex items-center gap-1 lg:gap-4">
                     <span className="text-xs lg:text-base">
+                      {t === 'profile' && '👤'}
                       {t === 'missions' && '🗺️'}
                       {t === 'multiplayer' && '📡'}
                       {t === 'arsenal' && '🛡️'}
@@ -639,6 +642,10 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
                   </div>
                 </div>
               </div>
+            )}
+
+            {tab === 'profile' && (
+              <ProfileDashboard playerName={playerName} />
             )}
 
             {tab === 'arsenal' && (

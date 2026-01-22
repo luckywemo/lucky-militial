@@ -116,7 +116,7 @@ import { WagmiProvider, useAccount } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { config } from './wagmi-config';
 import WalletConnect from './components/WalletConnect';
-import { initializeFarcaster, isInFarcaster, getFarcasterDisplayName } from './utils/farcaster';
+import { initializeFarcaster, isInFarcaster, getFarcasterDisplayName, getFarcasterCustodyAddress } from './utils/farcaster';
 import { ConnectWallet, Wallet } from '@coinbase/onchainkit/wallet';
 import { Avatar, Name } from '@coinbase/onchainkit/identity';
 
@@ -238,9 +238,8 @@ const AppContent: React.FC = () => {
 
   // Use Farcaster username if available, then Basename/ENS, otherwise generate random operator ID
   const [fallbackId] = useState('OPERATOR_' + Math.floor(Math.random() * 9999));
-  const farcasterName = isInFarcaster() ? getFarcasterDisplayName() : null;
-  // useName returns an object, extract the name property
-  const resolvedName = nameData && typeof nameData === 'object' ? (nameData as any).name : nameData;
+  // Farcaster wallet integration
+  const farcasterAddress = isInFarcaster() ? getFarcasterCustodyAddress() : null;
 
   // Ensure we only use string values (not Proxy/Function objects)
   const validFarcasterName = (typeof farcasterName === 'string' && farcasterName) ? farcasterName : null;
@@ -254,6 +253,14 @@ const AppContent: React.FC = () => {
     const newName = validFarcasterName || validResolvedName || fallbackId;
     setPlayerName(newName);
   }, [validFarcasterName, validResolvedName, fallbackId]);
+
+  // Handle direct Farcaster authentication
+  useEffect(() => {
+    if (view === 'wallet-auth' && farcasterAddress) {
+      console.log('[App] Farcaster custody address detected:', farcasterAddress);
+      setView('lobby');
+    }
+  }, [view, farcasterAddress]);
 
   const [characterClass, setCharacterClass] = useState<CharacterClass>('STRIKER');
   const [avatar, setAvatar] = useState<string | null>(null);

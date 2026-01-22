@@ -167,6 +167,20 @@ export const getFarcasterContext = () => {
 };
 
 /**
+ * Get Farcaster user's custody address (the address that owns the FID)
+ */
+export const getFarcasterCustodyAddress = (): string | null => {
+    return sdk.context?.user?.custodyAddress || null;
+};
+
+/**
+ * Get Farcaster user's verified addresses (wallets linked to the Farcaster account)
+ */
+export const getFarcasterVerifiedAddresses = (): string[] => {
+    return sdk.context?.user?.verifiedAddresses?.ethAddresses || [];
+};
+
+/**
  * Check if user has specific Farcaster capabilities
  */
 export const hasFarcasterCapability = (capability: string): boolean => {
