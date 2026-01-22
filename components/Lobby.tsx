@@ -9,6 +9,70 @@ import Leaderboard from './Leaderboard';
 import { parseEther } from 'viem';
 import { isInFarcaster } from '../utils/farcaster';
 
+// PeerJS Configuration - Auto-detect localhost for local testing
+const isLocalhost = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+// Use local PeerJS server for localhost testing, cloud for production
+const PEER_CONFIG = isLocalhost ? {
+  host: 'localhost',
+  port: 9000,
+  path: '/peerjs',
+  secure: false,
+  debug: 3,
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      // Free TURN servers from Open Relay Project for relay fallback
+      {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
+    ]
+  }
+} : {
+  host: '0.peerjs.com',
+  port: 443,
+  path: '/',
+  secure: true,
+  debug: 2,
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      // Free TURN servers from Open Relay Project for relay fallback
+      {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
+    ]
+  }
+};
 
 interface SquadMember {
   name: string;
@@ -175,7 +239,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
     setSquad([{ name: playerName, team: 'alpha', id: 'host' }]);
     setStatusMsg('TRANSMITTING...');
 
-    peerRef.current = new Peer(`LM-SCTR-${code}`);
+    peerRef.current = new Peer(`LM-SCTR-${code}`, PEER_CONFIG);
 
     // Add error handler for host
     peerRef.current.on('error', (err) => {
@@ -204,6 +268,15 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
           squad: squadRef.current,
           settings: { mpMatchMode, mpMap, scoreLimit, alphaBots, bravoBots }
         });
+
+        // Monitor ICE connection state for incoming connections
+        const pc = (conn as any).peerConnection as RTCPeerConnection | undefined;
+        if (pc) {
+          pc.addEventListener('iceconnectionstatechange', () => {
+            const state = pc.iceConnectionState;
+            console.log('[Multiplayer] Host ICE state with', conn.peer, ':', state);
+          });
+        }
       });
 
       conn.on('data', (data: any) => {
@@ -255,7 +328,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
     setActiveRoom(roomCode);
     setStatusMsg('LINKING...');
 
-    peerRef.current = new Peer();
+    peerRef.current = new Peer(PEER_CONFIG);
 
     // Add error handler for client
     peerRef.current.on('error', (err) => {
@@ -265,7 +338,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
 
     peerRef.current.on('open', (id) => {
       console.log('[Multiplayer] Client ready:', id);
-      const conn = peerRef.current!.connect(`LM-SCTR-${roomCode}`);
+      const conn = peerRef.current!.connect(`LM-SCTR-${roomCode}`, { reliable: true });
 
       // Add error handler for connection
       conn.on('error', (err) => {
@@ -279,6 +352,24 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
         setStatusMsg('CONNECTED');
         console.log('[Multiplayer] Sending join request:', { name: playerName, team: 'bravo' });
         conn.send({ type: 'join', name: playerName, team: 'bravo' });
+
+        // Monitor ICE connection state for better feedback
+        const pc = (conn as any).peerConnection as RTCPeerConnection | undefined;
+        if (pc) {
+          pc.addEventListener('iceconnectionstatechange', () => {
+            const state = pc.iceConnectionState;
+            console.log('[Multiplayer] ICE state:', state);
+            if (state === 'connected' || state === 'completed') {
+              setStatusMsg('CONNECTED');
+            } else if (state === 'disconnected') {
+              setStatusMsg('ICE_DISCONNECTED');
+            } else if (state === 'failed') {
+              setStatusMsg('ICE_FAILED');
+            } else if (state === 'checking') {
+              setStatusMsg('ICE_CHECKING');
+            }
+          });
+        }
       });
 
       conn.on('data', (data: any) => {
