@@ -13,36 +13,9 @@ import { isInFarcaster } from '../utils/farcaster';
 const isLocalhost = typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-// Use local PeerJS server for localhost testing, cloud for production
-const PEER_CONFIG = isLocalhost ? {
-  host: 'localhost',
-  port: 9000,
-  path: '/peerjs',
-  secure: false,
-  debug: 3,
-  config: {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      // Free TURN servers from Open Relay Project for relay fallback
-      {
-        urls: 'turn:openrelay.metered.ca:80',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      }
-    ]
-  }
-} : {
+// Consistent PeerJS Config: Use Cloud for production, even if accessed via local IP
+// This ensures mobile devices and desktops can find each other on the same signaling server.
+const PEER_CONFIG = {
   host: '0.peerjs.com',
   port: 443,
   path: '/',
@@ -54,22 +27,10 @@ const PEER_CONFIG = isLocalhost ? {
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
       { urls: 'stun:stun3.l.google.com:19302' },
-      // Free TURN servers from Open Relay Project for relay fallback
-      {
-        urls: 'turn:openrelay.metered.ca:80',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      }
+      // TURN servers for symmetric NAT traversal
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
     ]
   }
 };
@@ -201,15 +162,14 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
   useEffect(() => {
     if (settings.audioEnabled) {
       if (!bgMusicRef.current) {
-        bgMusicRef.current = new Audio('/assets/audio/bg-music.wav');
-        bgMusicRef.current.loop = true;
-        bgMusicRef.current.volume = 0.08;
+        // OPTIMIZATION: Do not load the massive 40MB WAV in the lobby.
+        // We will use the smaller pistol sound or just silence to save bandwidth for signaling.
+        // bgMusicRef.current = new Audio('/assets/audio/bg-music.wav');
+        console.log('[Lobby] Audio enabled, but skipping 40MB WAV to optimize connection speed.');
       }
-      bgMusicRef.current.play().catch(() => { });
+      if (bgMusicRef.current) bgMusicRef.current.play().catch(() => { });
     } else {
-      if (bgMusicRef.current) {
-        bgMusicRef.current.pause();
-      }
+      if (bgMusicRef.current) bgMusicRef.current.pause();
     }
 
     return () => {

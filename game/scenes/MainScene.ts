@@ -246,26 +246,8 @@ export class MainScene extends Phaser.Scene {
 
 
   private initMultiplayer() {
-    // PeerJS config with TURN servers for reliable connections
-    const isLocalhost = typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-    const peerConfig = isLocalhost ? {
-      host: 'localhost',
-      port: 9000,
-      path: '/peerjs',
-      secure: false,
-      debug: 2,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-        ]
-      }
-    } : {
+    // Standardize PeerJS config: Always use Cloud for cross-device support
+    const peerConfig = {
       host: '0.peerjs.com',
       port: 443,
       path: '/',
