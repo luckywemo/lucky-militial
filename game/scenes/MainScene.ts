@@ -138,10 +138,40 @@ export class MainScene extends Phaser.Scene {
     this.isMissionOver = false;
   }
 
-  preload() { }
+  preload() {
+    if (!this.audioEnabled) return;
+    const audioFiles = [
+      { key: 'sfx_pistol', path: '/assets/audio/pistol.wav' },
+      { key: 'sfx_shotgun', path: '/assets/audio/shotgun.wav' },
+      { key: 'sfx_hit_flesh', path: '/assets/audio/squit.wav' },
+      { key: 'sfx_powerup', path: '/assets/audio/p-chi.wav' },
+      { key: 'sfx_boost', path: '/assets/audio/thrust.mp3' },
+      { key: 'sfx_death_human', path: '/assets/audio/alien-death.flac' },
+      { key: 'sfx_victory', path: '/assets/audio/level-complete.wav' },
+      { key: 'music_loop', path: '/assets/audio/bg-music.wav' },
+    ];
+    audioFiles.forEach(({ key, path }) => {
+      if (!this.cache.audio.exists(key)) this.load.audio(key, path);
+    });
+  }
 
   create() {
     window.dispatchEvent(new CustomEvent('SCENE_READY'));
+
+    // Fix browser autoplay restrictions: Resume audio context on first interaction
+    this.input.once('pointerdown', () => {
+      if (this.sound.context.state === 'suspended') {
+        this.sound.context.resume().then(() => {
+          console.log('[Audio] Context resumed successfully');
+          this.initAudio();
+        });
+      }
+    });
+
+    // Initialize audio if context is already running (uncommon on first load but possible on scene restart)
+    if (this.sound.context.state === 'running') {
+      this.initAudio();
+    }
 
     // Initialize seeded random for consistent map generation
     this.seededRnd = new Phaser.Math.RandomDataGenerator([this.roomId || 'mission-seed']);
@@ -175,7 +205,6 @@ export class MainScene extends Phaser.Scene {
     this.setupUIElements();
     this.setupEmitters();
     this.setupPhysics();
-    this.loadAudioAsync();
 
     // Initialize 5-second safe zone at battle start
     this.safeZoneTimer = 5000;
@@ -201,24 +230,7 @@ export class MainScene extends Phaser.Scene {
     window.addEventListener('weapon_swap', ((e: CustomEvent) => this.swapWeapon(e.detail.key)) as any);
   }
 
-  private loadAudioAsync() {
-    if (!this.audioEnabled) return;
-    const audioFiles = [
-      { key: 'sfx_pistol', path: '/assets/audio/pistol.wav' },
-      { key: 'sfx_shotgun', path: '/assets/audio/shotgun.wav' },
-      { key: 'sfx_hit_flesh', path: '/assets/audio/squit.wav' },
-      { key: 'sfx_powerup', path: '/assets/audio/p-chi.wav' },
-      { key: 'sfx_boost', path: '/assets/audio/thrust.mp3' },
-      { key: 'sfx_death_human', path: '/assets/audio/alien-death.flac' },
-      { key: 'sfx_victory', path: '/assets/audio/level-complete.wav' },
-      { key: 'music_loop', path: '/assets/audio/bg-music.wav' },
-    ];
-    audioFiles.forEach(({ key, path }) => {
-      if (!this.cache.audio.exists(key)) this.load.audio(key, path);
-    });
-    this.load.once('complete', () => this.initAudio());
-    this.load.start();
-  }
+
 
   private initMultiplayer() {
     // PeerJS config with TURN servers for reliable connections
