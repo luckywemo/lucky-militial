@@ -1,21 +1,18 @@
 {
     "accountAssociation": {
-        "header": "eyJmaWQiOjEyMzQ1LCJ0eXBlIjoiY3VzdG9keSIsImtleSI6IjB4MTIzNDU2Nzg5MGFiY2RlZiJ9",
-        "payload": "eyJkb21haW4iOiJsdWNreS1taWxpdGlhLnZlcmNlbC5hcHAifQ",
-        "signature": "MHg5ODc2NTQzMjEwZmVkY2JhMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVm"
+        "header": "eyJmaWQiOjc0ODAzMSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweGJlMURmMEVlOWFDNmY3NjlDODM0NGE4MGM5OEYxMjZjNDk2M2RkZWEifQ",
+        "payload": "eyJkb21haW4iOiJsdWNreW1pbGl0aWEueHl6In0",
+        "signature": "adQUTIVPNkbsOVu7YJwqklubNN4crQ8o9TVE/5FYzK5BNqRM3SCYfaJzXJ/VBItDsdhsZlVur2gVO7PbvrVNlhw="
     },
-    "miniApp": {
+    "frame": {
+        "version": "1",
         "name": "Lucky Militia",
-        "version": "1.0.0",
-        "description": "Tactical multiplayer top-down shooter with AI-powered features",
-        "icon": "https://lucky-militia.vercel.app/favicon.ico",
-        "splashImage": "https://lucky-militia.vercel.app/favicon.ico",
+        "iconUrl": "https://luckymilitia.xyz/logo.jpg",
+        "homeUrl": "https://luckymilitia.xyz",
+        "imageUrl": "https://luckymilitia.xyz/logo.jpg",
+        "buttonTitle": "Play Now",
+        "splashImageUrl": "https://luckymilitia.xyz/logo.jpg",
         "splashBackgroundColor": "#050505",
-        "homeUrl": "https://lucky-militia.vercel.app/"
-    },
-    "permissions": [
-        "context",
-        "composeCast",
-        "wallet"
-    ]
+        "webhookUrl": "https://luckymilitia.xyz/api/webhook"
+    }
 }
