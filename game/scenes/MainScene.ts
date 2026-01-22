@@ -221,21 +221,81 @@ export class MainScene extends Phaser.Scene {
   }
 
   private initMultiplayer() {
-    // Host doesn't create a new peer - Lobby already created one with the same ID
-    // Creating a duplicate peer would cause "Peer ID already taken" error
-    // Only clients create a peer to connect to the host
-    if (!this.isHost) {
-      this.peer = new Peer();
-      this.peer.on('open', () => {
+    // PeerJS config with TURN servers for reliable connections
+    const isLocalhost = typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    const peerConfig = isLocalhost ? {
+      host: 'localhost',
+      port: 9000,
+      path: '/peerjs',
+      secure: false,
+      debug: 2,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        ]
+      }
+    } : {
+      host: '0.peerjs.com',
+      port: 443,
+      path: '/',
+      secure: true,
+      debug: 1,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        ]
+      }
+    };
+
+    if (this.isHost) {
+      // Host creates a GAME peer with a different ID pattern to avoid conflict with Lobby peer
+      const gamePeerId = `LM-GAME-${this.roomId}`;
+      console.log('[MainScene] Host creating game peer:', gamePeerId);
+      this.peer = new Peer(gamePeerId, peerConfig);
+
+      this.peer.on('open', (id) => {
+        console.log('[MainScene] Host game peer ready:', id);
+      });
+
+      this.peer.on('error', (err) => {
+        console.error('[MainScene] Host peer error:', err);
+      });
+
+      this.peer.on('connection', (conn) => {
+        console.log('[MainScene] Host received game connection from:', conn.peer);
+        this.handleConnection(conn);
+      });
+    } else {
+      // Client creates a peer and connects to the host's GAME peer
+      console.log('[MainScene] Client creating peer to connect to game...');
+      this.peer = new Peer(peerConfig);
+
+      this.peer.on('open', (id) => {
+        console.log('[MainScene] Client peer ready:', id);
         if (this.roomId) {
-          const conn = this.peer!.connect(`LM-SCTR-${this.roomId}`);
+          const gamePeerId = `LM-GAME-${this.roomId}`;
+          console.log('[MainScene] Client connecting to host game peer:', gamePeerId);
+          const conn = this.peer!.connect(gamePeerId, { reliable: true });
           this.handleConnection(conn);
         }
       });
+
+      this.peer.on('error', (err) => {
+        console.error('[MainScene] Client peer error:', err);
+      });
+
       this.peer.on('connection', (conn) => this.handleConnection(conn));
     }
-    // Host will receive connections through the Lobby peer
-    // No peer initialization needed for host in MainScene
   }
 
   private handleConnection(conn: DataConnection) {
