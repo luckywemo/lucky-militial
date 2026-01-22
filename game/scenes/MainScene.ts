@@ -283,10 +283,7 @@ export class MainScene extends Phaser.Scene {
       this.peer.on('open', (id) => {
         console.log('[MainScene] Client peer ready:', id);
         if (this.roomId) {
-          const gamePeerId = `LM-GAME-${this.roomId}`;
-          console.log('[MainScene] Client connecting to host game peer:', gamePeerId);
-          const conn = this.peer!.connect(gamePeerId, { reliable: true });
-          this.handleConnection(conn);
+          this.connectToHostWithRetry(0);
         }
       });
 
@@ -296,6 +293,44 @@ export class MainScene extends Phaser.Scene {
 
       this.peer.on('connection', (conn) => this.handleConnection(conn));
     }
+  }
+
+  private connectToHostWithRetry(attempt: number) {
+    const maxAttempts = 5;
+    const baseDelay = 1000; // 1 second
+
+    if (attempt >= maxAttempts) {
+      console.error('[MainScene] Failed to connect after', maxAttempts, 'attempts');
+      return;
+    }
+
+    const gamePeerId = `LM-GAME-${this.roomId}`;
+    console.log(`[MainScene] Client connecting to host (attempt ${attempt + 1}/${maxAttempts}):`, gamePeerId);
+
+    const conn = this.peer!.connect(gamePeerId, { reliable: true });
+
+    // Set a timeout to check if connection opened
+    const connectionTimeout = setTimeout(() => {
+      if (!this.connections.has(conn.peer)) {
+        console.log('[MainScene] Connection timeout, retrying...');
+        const delay = baseDelay * Math.pow(2, attempt);
+        setTimeout(() => this.connectToHostWithRetry(attempt + 1), delay);
+      }
+    }, 3000);
+
+    conn.on('open', () => {
+      clearTimeout(connectionTimeout);
+      console.log('[MainScene] Successfully connected to host on attempt', attempt + 1);
+      this.handleConnection(conn);
+    });
+
+    conn.on('error', (err) => {
+      clearTimeout(connectionTimeout);
+      console.error('[MainScene] Connection error:', err);
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(`[MainScene] Retrying in ${delay}ms...`);
+      setTimeout(() => this.connectToHostWithRetry(attempt + 1), delay);
+    });
   }
 
   private handleConnection(conn: DataConnection) {
