@@ -151,7 +151,9 @@ export class MainScene extends Phaser.Scene {
       { key: 'music_loop', path: '/assets/audio/bg-music.wav' },
     ];
     audioFiles.forEach(({ key, path }) => {
-      if (!this.cache.audio.exists(key)) this.load.audio(key, path);
+      if (key !== 'music_loop' && !this.cache.audio.exists(key)) {
+        this.load.audio(key, path);
+      }
     });
   }
 
@@ -171,6 +173,17 @@ export class MainScene extends Phaser.Scene {
     // Initialize audio if context is already running (uncommon on first load but possible on scene restart)
     if (this.sound.context.state === 'running') {
       this.initAudio();
+    }
+
+    // Load large background music asynchronously so it doesn't block the "Deploy" button.
+    if (!this.cache.audio.exists('music_loop')) {
+      this.load.audio('music_loop', '/assets/audio/bg-music.wav');
+      this.load.once('complete', () => {
+        if (this.sound.context.state === 'running') {
+          this.initAudio();
+        }
+      });
+      this.load.start();
     }
 
     // Initialize seeded random for consistent map generation
