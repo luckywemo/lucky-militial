@@ -71,11 +71,13 @@ const BootSequence: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
 
   return (
     <div className={`flex-1 flex flex-col items-center justify-center bg-[#050505] p-3 sm:p-6 lg:p-10 font-mono relative overflow-hidden transition-all duration-75 ${glitch ? 'invert scale-[1.01] brightness-150' : ''}`}>
-      <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(249,115,22,0.1)_0%,transparent_70%)] animate-pulse"></div>
-      <div className="w-full max-w-2xl space-y-3 sm:space-y-6 lg:space-y-10 relative z-10">
+      <div className="absolute inset-0 z-0">
+        <img src="/splash.jpg" alt="" className="w-full h-full object-cover opacity-20" />
+      </div>
+      <div className="w-full max-w-2xl space-y-3 sm:space-y-6 lg:space-y-10 relative z-10 bg-black/40 p-4 sm:p-8 rounded-2xl backdrop-blur-md border border-white/5">
         <div className="flex items-center gap-3 sm:gap-5 lg:gap-8 mb-4 sm:mb-8 lg:mb-16 animate-in fade-in slide-in-from-top-10 duration-700">
-          <div className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 bg-orange-600 rounded-lg flex items-center justify-center animate-bounce shadow-[0_0_50px_rgba(249,115,22,0.6)] border-2 border-white/20 overflow-hidden">
-            <img src="/logo.jpg" alt="Lucky Militia" className="w-full h-full object-cover" />
+          <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-orange-600 rounded-lg flex items-center justify-center animate-bounce shadow-[0_0_50px_rgba(249,115,22,0.6)] border-2 border-white/20 overflow-hidden">
+            <img src="/splash.jpg" alt="Lucky Militia" className="w-full h-full object-cover scale-150" />
           </div>
           <div>
             <div className="text-orange-500 text-xs sm:text-base lg:text-lg font-black tracking-[0.3em] sm:tracking-[0.5em] lg:tracking-[0.8em] uppercase mb-1 drop-shadow-lg">LUCKY_MILITIA</div>
@@ -147,11 +149,13 @@ const WalletAuthScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) 
 
   return (
     <div className={`flex-1 flex flex-col items-center justify-center bg-[#050505] p-3 sm:p-6 lg:p-10 font-mono relative overflow-hidden transition-all duration-75 ${glitch ? 'invert scale-[1.01] brightness-150' : ''}`}>
-      <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(249,115,22,0.1)_0%,transparent_70%)] animate-pulse"></div>
+      <div className="absolute inset-0 z-0">
+        <img src="/splash.jpg" alt="" className="w-full h-full object-cover opacity-10" />
+      </div>
       <div className="w-full max-w-2xl space-y-6 sm:space-y-8 lg:space-y-12 relative z-10">
         <div className="flex flex-col items-center gap-4 sm:gap-6 lg:gap-8 mb-8 sm:mb-12 lg:mb-16 animate-in fade-in slide-in-from-top-10 duration-700">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-orange-600 rounded-lg flex items-center justify-center animate-bounce shadow-[0_0_50px_rgba(249,115,22,0.6)] border-2 border-white/20 overflow-hidden">
-            <img src="/logo.jpg" alt="Lucky Militia" className="w-full h-full object-cover" />
+          <div className="w-24 h-24 sm:w-32 sm:h-32 lg:w-48 lg:h-48 bg-orange-600 rounded-lg flex items-center justify-center animate-pulse shadow-[0_0_50px_rgba(249,115,22,0.6)] border-2 border-white/10 overflow-hidden">
+            <img src="/splash.jpg" alt="Lucky Militia" className="w-full h-full object-cover" />
           </div>
           <div className="text-center">
             <div className="text-orange-500 text-xl sm:text-3xl lg:text-4xl font-black tracking-[0.3em] sm:tracking-[0.5em] lg:tracking-[0.8em] uppercase mb-2 drop-shadow-lg">LUCKY_MILITIA</div>

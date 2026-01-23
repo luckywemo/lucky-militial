@@ -9,39 +9,9 @@ import Leaderboard from './Leaderboard';
 import { parseEther } from 'viem';
 import { isInFarcaster } from '../utils/farcaster';
 import ProfileDashboard from './ProfileDashboard';
+import { PEER_CONFIG, getPeerId, getStatusFromIceState } from '../utils/multiplayer';
+import { useMultiplayer, SquadMember } from '../hooks/useMultiplayer';
 
-
-// PeerJS Configuration - Auto-detect localhost for local testing
-const isLocalhost = typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-// Consistent PeerJS Config: Use Cloud for production, even if accessed via local IP
-// This ensures mobile devices and desktops can find each other on the same signaling server.
-const PEER_CONFIG = {
-  host: '0.peerjs.com',
-  port: 443,
-  path: '/',
-  secure: true,
-  debug: 2,
-  config: {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun3.l.google.com:19302' },
-      // TURN servers for symmetric NAT traversal
-      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-    ]
-  }
-};
-
-interface SquadMember {
-  name: string;
-  team: 'alpha' | 'bravo';
-  id: string;
-}
 
 interface Props {
   playerName: string;
@@ -115,10 +85,6 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
 
   const [selectedLevelId, setSelectedLevelId] = useState(unlockedLevel);
   const [roomCode, setRoomCode] = useState('');
-  const [activeRoom, setActiveRoom] = useState<string | null>(null);
-  const [isHost, setIsHost] = useState(false);
-  const [squad, setSquad] = useState<SquadMember[]>([{ name: playerName, team: 'alpha', id: 'host' }]);
-  const [statusMsg, setStatusMsg] = useState('OFFLINE');
 
   const [mpMatchMode, setMpMatchMode] = useState<MPMatchMode>('TDM');
   const [mpMap, setMpMap] = useState<MPMap>('URBAN_RUINS');
@@ -126,269 +92,40 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
   const [alphaBots, setAlphaBots] = useState(2);
   const [bravoBots, setBravoBots] = useState(2);
 
-  const peerRef = useRef<Peer | null>(null);
-  const connections = useRef<DataConnection[]>([]);
-  const squadRef = useRef<SquadMember[]>(squad);
+  const {
+    activeRoom,
+    isHost,
+    squad,
+    statusMsg,
+    handleCreateRoom: createRoom,
+    handleJoinRoom: joinRoom,
+    switchTeam,
+    initiateStart,
+    setSquad,
+    setActiveRoom
+  } = useMultiplayer({
+    playerName,
+    mpMatchMode,
+    mpMap,
+    scoreLimit,
+    alphaBots,
+    bravoBots,
+    onGameStart: (code, host, squadMembers, mpConfig) => {
+      onStart(code, host, 'multiplayer', undefined, squadMembers, mpConfig);
+    }
+  });
+
   const [isDeploying, setIsDeploying] = useState(false);
 
   const { recordKill, recordWin, syncStats } = useBlockchainStats();
 
-  useEffect(() => {
-    squadRef.current = squad;
-  }, [squad]);
-
-  // Sync name changes to connected peers
-  useEffect(() => {
-    if (!activeRoom) return; // Only sync if in a room
-
-    const myId = isHost ? 'host' : (peerRef.current?.id || '');
-
-    if (isHost) {
-      // Host: update own squad entry and broadcast to all clients
-      setSquad((prev) => {
-        const next = prev.map(m => m.id === 'host' ? { ...m, name: playerName } : m);
-        // Broadcast to all clients
-        connections.current.forEach(c => {
-          if (c.open) {
-            c.send({ type: 'update_name', id: 'host', name: playerName });
-          }
-        });
-        return next;
-      });
-    } else {
-      // Client: send update to host
-      const conn = connections.current[0];
-      if (conn && conn.open) {
-        conn.send({ type: 'update_name', name: playerName });
-      }
-    }
-  }, [playerName, activeRoom, isHost]);
+  // Sync name/squad logic is now inside useMultiplayer hook
 
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => {
-    if (settings.audioEnabled) {
-      if (!bgMusicRef.current) {
-        // OPTIMIZATION: Do not load the massive 40MB WAV in the lobby.
-        // We will use the smaller pistol sound or just silence to save bandwidth for signaling.
-        // bgMusicRef.current = new Audio('/assets/audio/bg-music.wav');
-        console.log('[Lobby] Audio enabled, but skipping 40MB WAV to optimize connection speed.');
-      }
-      if (bgMusicRef.current) bgMusicRef.current.play().catch(() => { });
-    } else {
-      if (bgMusicRef.current) bgMusicRef.current.pause();
-    }
+  const handleCreateRoom = () => createRoom();
+  const handleJoinRoom = () => joinRoom(roomCode);
 
-    return () => {
-      if (bgMusicRef.current) {
-        bgMusicRef.current.pause();
-        bgMusicRef.current = null;
-      }
-    };
-  }, [settings.audioEnabled]);
-
-  useEffect(() => {
-    return () => { if (peerRef.current) peerRef.current.destroy(); };
-  }, []);
-
-  const broadcastSquad = (newList: SquadMember[]) => {
-    connections.current.forEach(c => {
-      if (c.open) {
-        c.send({ type: 'sync_squad', squad: newList });
-      }
-    });
-  };
-
-  const handleCreateRoom = () => {
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    setIsHost(true);
-    setActiveRoom(code);
-    setSquad([{ name: playerName, team: 'alpha', id: 'host' }]);
-    setStatusMsg('TRANSMITTING...');
-
-    peerRef.current = new Peer(`LM-SCTR-${code}`, PEER_CONFIG);
-
-    // Add error handler for host
-    peerRef.current.on('error', (err) => {
-      console.error('[Multiplayer] Host error:', err);
-      setStatusMsg('CONNECTION_ERROR');
-    });
-
-    peerRef.current.on('open', (id) => {
-      console.log('[Multiplayer] Host ready:', id);
-      setStatusMsg('BROADCASTING');
-    });
-
-    peerRef.current.on('connection', (conn) => {
-      console.log('[Multiplayer] New connection from:', conn.peer);
-
-      // Add error handler for individual connections
-      conn.on('error', (err) => {
-        console.error('[Multiplayer] Connection error with', conn.peer, ':', err);
-      });
-
-      conn.on('open', () => {
-        console.log('[Multiplayer] Connection opened with:', conn.peer);
-        connections.current.push(conn);
-        conn.send({
-          type: 'welcome',
-          squad: squadRef.current,
-          settings: { mpMatchMode, mpMap, scoreLimit, alphaBots, bravoBots }
-        });
-
-        // Monitor ICE connection state for incoming connections
-        const pc = (conn as any).peerConnection as RTCPeerConnection | undefined;
-        if (pc) {
-          pc.addEventListener('iceconnectionstatechange', () => {
-            const state = pc.iceConnectionState;
-            console.log('[Multiplayer] Host ICE state with', conn.peer, ':', state);
-          });
-        }
-      });
-
-      conn.on('data', (data: any) => {
-        console.log('[Multiplayer] Received data:', data.type, 'from', conn.peer);
-
-        if (data.type === 'join') {
-          console.log('[Multiplayer] Player joining:', data.name, 'Team:', data.team, 'ID:', conn.peer);
-          setSquad((prev) => {
-            const filtered = prev.filter(m => m.id !== conn.peer);
-            const next = [...filtered, { name: data.name, team: data.team, id: conn.peer }];
-            console.log('[Multiplayer] Updated squad:', next);
-            broadcastSquad(next);
-            return next;
-          });
-        }
-        if (data.type === 'switch_team') {
-          console.log('[Multiplayer] Player switching team:', conn.peer, 'to', data.team);
-          setSquad((prev) => {
-            const next = prev.map(m => m.id === conn.peer ? { ...m, team: data.team } : m);
-            broadcastSquad(next);
-            return next;
-          });
-        }
-        if (data.type === 'update_name') {
-          console.log('[Multiplayer] Player updating name:', conn.peer, 'to', data.name);
-          setSquad((prev) => {
-            const next = prev.map(m => m.id === conn.peer ? { ...m, name: data.name } : m);
-            broadcastSquad(next);
-            return next;
-          });
-        }
-      });
-
-      conn.on('close', () => {
-        console.log('[Multiplayer] Connection closed with:', conn.peer);
-        connections.current = connections.current.filter(c => c !== conn);
-        setSquad(prev => {
-          const next = prev.filter(m => m.id !== conn.peer);
-          broadcastSquad(next);
-          return next;
-        });
-      });
-    });
-  };
-
-  const handleJoinRoom = () => {
-    if (roomCode.length !== 4) return;
-    setIsHost(false);
-    setActiveRoom(roomCode);
-    setStatusMsg('LINKING...');
-
-    peerRef.current = new Peer(PEER_CONFIG);
-
-    // Add error handler for client
-    peerRef.current.on('error', (err) => {
-      console.error('[Multiplayer] Client error:', err);
-      setStatusMsg('CONNECTION_FAILED');
-    });
-
-    peerRef.current.on('open', (id) => {
-      console.log('[Multiplayer] Client ready:', id);
-      const conn = peerRef.current!.connect(`LM-SCTR-${roomCode}`, { reliable: true });
-
-      // Add error handler for connection
-      conn.on('error', (err) => {
-        console.error('[Multiplayer] Connection error:', err);
-        setStatusMsg('CONNECTION_FAILED');
-      });
-
-      conn.on('open', () => {
-        console.log('[Multiplayer] Connected to host:', `LM-SCTR-${roomCode}`);
-        connections.current = [conn];
-        setStatusMsg('CONNECTED');
-        console.log('[Multiplayer] Sending join request:', { name: playerName, team: 'bravo' });
-        conn.send({ type: 'join', name: playerName, team: 'bravo' });
-
-        // Monitor ICE connection state for better feedback
-        const pc = (conn as any).peerConnection as RTCPeerConnection | undefined;
-        if (pc) {
-          pc.addEventListener('iceconnectionstatechange', () => {
-            const state = pc.iceConnectionState;
-            console.log('[Multiplayer] ICE state:', state);
-            if (state === 'connected' || state === 'completed') {
-              setStatusMsg('CONNECTED');
-            } else if (state === 'disconnected') {
-              setStatusMsg('ICE_DISCONNECTED');
-            } else if (state === 'failed') {
-              setStatusMsg('ICE_FAILED');
-            } else if (state === 'checking') {
-              setStatusMsg('ICE_CHECKING');
-            }
-          });
-        }
-      });
-
-      conn.on('data', (data: any) => {
-        console.log('[Multiplayer] Received data from host:', data.type);
-
-        if (data.type === 'sync_squad' || data.type === 'welcome') {
-          console.log('[Multiplayer] Squad update received:', data.squad);
-          setSquad(data.squad);
-          if (data.settings) {
-            setMpMatchMode(data.settings.mpMatchMode);
-            setMpMap(data.settings.mpMap);
-            setScoreLimit(data.settings.scoreLimit);
-            setAlphaBots(data.settings.alphaBots || 0);
-            setBravoBots(data.settings.bravoBots || 0);
-          }
-        }
-        if (data.type === 'start') {
-          console.log('[Multiplayer] Game starting with squad:', data.squad);
-          onStart(roomCode, false, 'multiplayer', undefined, data.squad, data.mpConfig);
-        }
-        if (data.type === 'update_name') {
-          setSquad((prev) => {
-            return prev.map(m => m.id === data.id ? { ...m, name: data.name } : m);
-          });
-        }
-      });
-
-      conn.on('close', () => {
-        console.log('[Multiplayer] Disconnected from host');
-        setStatusMsg('DISCONNECTED');
-        setActiveRoom(null);
-      });
-    });
-  };
-
-  const switchTeam = () => {
-    const myId = isHost ? 'host' : (peerRef.current?.id || '');
-    const myMember = squadRef.current.find(m => m.id === myId || (m.name === playerName && !isHost));
-    if (!myMember) return;
-    const nextTeam: 'alpha' | 'bravo' = myMember.team === 'alpha' ? 'bravo' : 'alpha';
-
-    if (isHost) {
-      setSquad((prev) => {
-        const next = prev.map(m => m.id === 'host' ? { ...m, team: nextTeam } : m);
-        broadcastSquad(next);
-        return next;
-      });
-    } else {
-      const conn = connections.current[0];
-      if (conn) conn.send({ type: 'switch_team', name: playerName, team: nextTeam });
-    }
-  };
 
   const deploy = async () => {
     if (tab === 'multiplayer' && activeRoom) {
@@ -408,12 +145,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
 
         const mapSeed = Math.random().toString(36).substring(2, 12).toUpperCase();
         const config: MPConfig = { mode: mpMatchMode, map: mpMap, alphaBots, bravoBots, scoreLimit, mapSeed };
-        connections.current.forEach(c => c.send({
-          type: 'start',
-          squad: squadRef.current,
-          mpConfig: config
-        }));
-        onStart(activeRoom, true, 'multiplayer', undefined, squadRef.current, config);
+        initiateStart(config);
       }
     } else {
       // Mission mode session registration
@@ -580,8 +312,14 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
                 {/* Connection Status Indicator */}
                 <div className="bg-black/40 border border-stone-800 rounded-lg p-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#22c55e]"></div>
-                    <span className="text-[9px] lg:text-xs font-black text-green-500 uppercase tracking-wider">Connected</span>
+                    <div className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_10px_currentColor] ${statusMsg.includes('FAILED') || statusMsg.includes('ERROR') ? 'text-red-500 bg-red-500' :
+                      statusMsg.includes('UPLINK') ? 'text-blue-500 bg-blue-500' :
+                        statusMsg.includes('CONNECTED') || statusMsg.includes('SIGNAL') ? 'text-green-500 bg-green-500' : 'text-orange-500 bg-orange-500'
+                      }`}></div>
+                    <span className={`text-[9px] lg:text-xs font-black uppercase tracking-wider ${statusMsg.includes('FAILED') || statusMsg.includes('ERROR') ? 'text-red-500' :
+                      statusMsg.includes('UPLINK') ? 'text-blue-400' :
+                        statusMsg.includes('CONNECTED') || statusMsg.includes('SIGNAL') ? 'text-green-500' : 'text-orange-500'
+                      }`}>{statusMsg}</span>
                   </div>
                   <div className="text-[9px] lg:text-xs font-black text-stone-400 uppercase tracking-wider">
                     Players: <span className="text-white">{squad.length}</span>

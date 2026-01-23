@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import Peer, { DataConnection } from 'peerjs';
+import { PEER_CONFIG, getPeerId } from '../../utils/multiplayer';
 import { CharacterClass, MissionConfig, MPConfig } from '../../App';
 
 export interface WeaponConfig {
@@ -246,29 +247,11 @@ export class MainScene extends Phaser.Scene {
 
 
   private initMultiplayer() {
-    // Standardize PeerJS config: Always use Cloud for cross-device support
-    const peerConfig = {
-      host: '0.peerjs.com',
-      port: 443,
-      path: '/',
-      secure: true,
-      debug: 1,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-        ]
-      }
-    };
-
     if (this.isHost) {
       // Host creates a GAME peer with a different ID pattern to avoid conflict with Lobby peer
-      const gamePeerId = `LM-GAME-${this.roomId}`;
+      const gamePeerId = getPeerId('GAME', this.roomId!);
       console.log('[MainScene] Host creating game peer:', gamePeerId);
-      this.peer = new Peer(gamePeerId, peerConfig);
+      this.peer = new Peer(gamePeerId, PEER_CONFIG);
 
       this.peer.on('open', (id) => {
         console.log('[MainScene] Host game peer ready:', id);
@@ -285,7 +268,7 @@ export class MainScene extends Phaser.Scene {
     } else {
       // Client creates a peer and connects to the host's GAME peer
       console.log('[MainScene] Client creating peer to connect to game...');
-      this.peer = new Peer(peerConfig);
+      this.peer = new Peer(PEER_CONFIG);
 
       this.peer.on('open', (id) => {
         console.log('[MainScene] Client peer ready:', id);
@@ -311,7 +294,7 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    const gamePeerId = `LM-GAME-${this.roomId}`;
+    const gamePeerId = getPeerId('GAME', this.roomId!);
     console.log(`[MainScene] Client connecting to host (attempt ${attempt + 1}/${maxAttempts}):`, gamePeerId);
 
     const conn = this.peer!.connect(gamePeerId, { reliable: true });
