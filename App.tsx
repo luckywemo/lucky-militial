@@ -113,11 +113,12 @@ const BootSequence: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
 import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { useName } from '@coinbase/onchainkit/identity';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiProvider, useAccount } from 'wagmi';
+import { WagmiProvider, useAccount, useConnect } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { config } from './wagmi-config';
 import { MiniKitProvider, useMiniKit } from '@coinbase/onchainkit/minikit';
 import { sdk } from '@farcaster/miniapp-sdk';
+import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { isInFarcaster, getFarcasterDisplayName, getFarcasterCustodyAddress, getFarcasterFid } from './utils/farcaster';
 import { ConnectWallet, Wallet } from '@coinbase/onchainkit/wallet';
 import { Avatar, Name } from '@coinbase/onchainkit/identity';
@@ -238,7 +239,8 @@ const App: React.FC = () => {
 
 const AppContent: React.FC = () => {
   const [view, setView] = useState<AppState>('boot');
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
+  const { connect, connectors } = useConnect();
   const { data: nameData } = useName({ address: address as `0x${string}` });
 
   // Use Basename/ENS, otherwise generate random operator ID
@@ -315,6 +317,15 @@ const AppContent: React.FC = () => {
         }
         // ------------------------------
 
+        // --- AUTO-CONNECT FARCASTER WALLET ---
+        if (!isConnected) {
+          const fcConnector = connectors.find(c => c.id === 'farcaster');
+          if (fcConnector) {
+            console.log('[App] Auto-connecting Farcaster wallet...');
+            connect({ connector: fcConnector });
+          }
+        }
+
         // Auto-skip wallet auth if in Farcaster (if we have an address or are verified)
         if ((addr || isVerified) && (view === 'wallet-auth' || view === 'boot')) {
           setTimeout(() => setView('lobby'), 800);
@@ -322,7 +333,7 @@ const AppContent: React.FC = () => {
       }
     };
     checkFarcasterAuth();
-  }, [view, isVerified]);
+  }, [view, isVerified, isConnected, connectors, connect]);
 
   // Unified address: Prioritize Wagmi (if manually connected) then Farcaster
   const activeAddress = address || farcasterAddress;

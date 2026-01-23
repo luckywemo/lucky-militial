@@ -16,9 +16,12 @@ export default function Leaderboard() {
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4 duration-500">
             <div className="p-4 bg-stone-900/60 border border-stone-800 rounded-xl relative overflow-hidden group">
                 <div className="absolute top-0 left-0 w-1 h-full bg-orange-500"></div>
-                <h3 className="text-xl font-black text-white uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <span>🏆</span> GLOBAL_LEADERBOARD
-                </h3>
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-2">
+                        <span>🏆</span> GLOBAL_LEADERBOARD
+                    </h3>
+                    <div className="px-2 py-0.5 bg-orange-600/20 border border-orange-500/30 rounded text-[8px] font-black text-orange-500">SEASON_01</div>
+                </div>
                 <p className="text-[10px] text-stone-500 font-bold uppercase tracking-wider">
                     On-Chain_Combat_Records // Base_Network
                 </p>
@@ -37,12 +40,12 @@ export default function Leaderboard() {
                     <div key={rank} className="grid grid-cols-12 gap-2 px-4 py-3 bg-stone-900/40 border border-stone-800 rounded flex items-center group hover:bg-white/5 transition-all">
                         <div className={`col-span-1 font-black ${rank === 1 ? 'text-orange-500' : 'text-stone-500'}`}>{rank}</div>
                         <div className="col-span-5 flex items-center gap-2">
-                            <div className="w-4 h-4 rounded-sm bg-stone-800 flex items-center justify-center text-[8px] font-black text-white">O</div>
-                            <div className="truncate text-[10px] font-black text-white">OPERATOR_{Math.floor(Math.random() * 9000 + 1000)}</div>
+                            <div className="w-4 h-4 rounded-sm bg-stone-950 flex items-center justify-center text-[8px] font-black text-stone-700">?</div>
+                            <div className="truncate text-[10px] font-black text-stone-600 uppercase italic">Awaiting_Operator</div>
                         </div>
-                        <div className="col-span-2 text-center text-[10px] font-black text-cyan-500">{Math.floor(Math.random() * 500)}</div>
-                        <div className="col-span-2 text-center text-[10px] font-black text-white">{Math.floor(Math.random() * 50)}</div>
-                        <div className="col-span-2 text-right text-[10px] font-black text-orange-500">{Math.floor(Math.random() * 10000)}</div>
+                        <div className="col-span-2 text-center text-[10px] font-black text-stone-800">0</div>
+                        <div className="col-span-2 text-center text-[10px] font-black text-stone-800">0</div>
+                        <div className="col-span-2 text-right text-[10px] font-black text-stone-800">0000</div>
                     </div>
                 ))}
             </div>
