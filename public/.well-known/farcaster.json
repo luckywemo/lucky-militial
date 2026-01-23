@@ -6,11 +6,11 @@
     },
     "frame": {
         "version": "1",
-        "name": "Lucky Militia",
+        "name": "LuckyMilitia",
         "iconUrl": "https://luckymilitia.xyz/logo.jpg",
         "homeUrl": "https://lucky-militial.vercel.app",
         "imageUrl": "https://luckymilitia.xyz/logo.jpg",
-        "buttonTitle": "Play Now",
+        "buttonTitle": "Deploy",
         "splashImageUrl": "https://lucky-militial.vercel.app/splash.jpg",
         "splashBackgroundColor": "#050505",
         "webhookUrl": "https://lucky-militial.vercel.app/api/webhook"
