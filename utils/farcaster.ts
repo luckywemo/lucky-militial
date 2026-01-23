@@ -9,11 +9,12 @@ import { sdk } from '@farcaster/miniapp-sdk';
  * Check if the app is running inside a Farcaster client
  */
 export const isInFarcaster = (): boolean => {
-    try {
-        return sdk.context !== null && sdk.context !== undefined;
-    } catch {
-        return false;
-    }
+    // Basic check for environment, more reliable checks can be done via sdk.context resolution
+    return typeof window !== 'undefined' && (
+        !!(window as any).ReactNativeWebView ||
+        window.location.search.includes('farcaster') ||
+        !!sdk.context
+    );
 };
 
 /**
@@ -32,18 +33,30 @@ export const initializeFarcaster = async (): Promise<void> => {
 };
 
 /**
- * Get the current Farcaster user context
+ * Get the current Farcaster user context (async as it's a promise in SDK v0.2+)
  */
-export const getFarcasterUser = () => {
+export const getFarcasterUser = async () => {
     if (!isInFarcaster()) return null;
-    return sdk.context?.user || null;
+    try {
+        const context = await sdk.context;
+        return context?.user || null;
+    } catch {
+        return null;
+    }
 };
 
 /**
  * Get Farcaster user's display name
  */
-export const getFarcasterDisplayName = (): string | null => {
-    const user = getFarcasterUser();
+export const getFarcasterDisplayName = async (): Promise<string | null> => {
+    // 1. Check for mock name in URL
+    if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const mockName = params.get('fname') || params.get('name');
+        if (mockName) return mockName;
+    }
+
+    const user = await getFarcasterUser();
     if (!user) return null;
     return user.displayName || user.username || null;
 };
@@ -51,8 +64,8 @@ export const getFarcasterDisplayName = (): string | null => {
 /**
  * Get Farcaster user's username
  */
-export const getFarcasterUsername = (): string | null => {
-    const user = getFarcasterUser();
+export const getFarcasterUsername = async (): Promise<string | null> => {
+    const user = await getFarcasterUser();
     if (!user) return null;
     return user.username || null;
 };
@@ -60,8 +73,15 @@ export const getFarcasterUsername = (): string | null => {
 /**
  * Get Farcaster user's FID (Farcaster ID)
  */
-export const getFarcasterFid = (): number | null => {
-    const user = getFarcasterUser();
+export const getFarcasterFid = async (): Promise<number | null> => {
+    // 1. Check for mock FID in URL (for development testing)
+    if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const mockFid = params.get('fid');
+        if (mockFid) return parseInt(mockFid, 10);
+    }
+
+    const user = await getFarcasterUser();
     if (!user) return null;
     return user.fid || null;
 };
@@ -69,8 +89,8 @@ export const getFarcasterFid = (): number | null => {
 /**
  * Get Farcaster user's profile picture URL
  */
-export const getFarcasterPfpUrl = (): string | null => {
-    const user = getFarcasterUser();
+export const getFarcasterPfpUrl = async (): Promise<string | null> => {
+    const user = await getFarcasterUser();
     if (!user) return null;
     return user.pfpUrl || null;
 };
@@ -89,9 +109,10 @@ export const shareToFarcaster = async (options: {
     }
 
     try {
-        await sdk.actions.openComposer({
+        const embeds = options.embeds || [];
+        await sdk.actions.composeCast({
             text: options.text,
-            embeds: options.embeds,
+            embeds: embeds.length === 0 ? [] : embeds.length === 1 ? [embeds[0]] : [embeds[0], embeds[1]] as [string, string],
         });
         console.log('[Farcaster] Composer opened successfully');
     } catch (error) {
@@ -161,23 +182,36 @@ export const shareLeaderboardRank = async (rank: number, kills: number, wins: nu
 /**
  * Get Farcaster context information
  */
-export const getFarcasterContext = () => {
+export const getFarcasterContext = async () => {
     if (!isInFarcaster()) return null;
-    return sdk.context;
+    return await sdk.context;
 };
 
 /**
- * Get Farcaster user's custody address (the address that owns the FID)
+ * Get Farcaster user's custody address (using the injected EIP-1193 provider)
  */
-export const getFarcasterCustodyAddress = (): string | null => {
-    return sdk.context?.user?.custodyAddress || null;
+export const getFarcasterCustodyAddress = async (): Promise<string | null> => {
+    if (!isInFarcaster()) return null;
+    try {
+        const provider = sdk.wallet?.ethProvider;
+        if (!provider) return null;
+
+        const accounts = await provider.request({ method: 'eth_requestAccounts' }) as string[];
+        return accounts && accounts.length > 0 ? accounts[0] : null;
+    } catch (error) {
+        console.error('[Farcaster] Failed to get custody address:', error);
+        return null;
+    }
 };
 
 /**
  * Get Farcaster user's verified addresses (wallets linked to the Farcaster account)
  */
-export const getFarcasterVerifiedAddresses = (): string[] => {
-    return sdk.context?.user?.verifiedAddresses?.ethAddresses || [];
+export const getFarcasterVerifiedAddresses = async (): Promise<string[]> => {
+    // Verified addresses might not be directly available in the basic user context
+    // We can fetch them via a backend API using the FID if needed, 
+    // but for "direct connection", the custody address from ethProvider is best.
+    return [];
 };
 
 /**

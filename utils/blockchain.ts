@@ -27,11 +27,11 @@ const LEADERBOARD_ABI = [
  */
 export function useBlockchainStats() {
     const { address } = useAccount();
-    const { writeContract } = useWriteContract();
+    const { writeContractAsync } = useWriteContract();
 
-    const recordKill = (playerAddress: string) => {
+    const recordKill = async (playerAddress: string) => {
         if (!address) return;
-        writeContract({
+        return writeContractAsync({
             address: CONTRACT_ADDRESSES.REWARDS as `0x${string}`,
             abi: REWARDS_ABI,
             functionName: 'recordKill',
@@ -41,9 +41,9 @@ export function useBlockchainStats() {
         });
     };
 
-    const recordWin = (playerAddress: string) => {
+    const recordWin = async (playerAddress: string) => {
         if (!address) return;
-        writeContract({
+        return writeContractAsync({
             address: CONTRACT_ADDRESSES.REWARDS as `0x${string}`,
             abi: REWARDS_ABI,
             functionName: 'recordWin',
@@ -53,9 +53,9 @@ export function useBlockchainStats() {
         });
     };
 
-    const syncStats = (kills: number, wins: number) => {
+    const syncStats = async (kills: number, wins: number) => {
         if (!address) return;
-        writeContract({
+        return writeContractAsync({
             address: CONTRACT_ADDRESSES.LEADERBOARD as `0x${string}`,
             abi: LEADERBOARD_ABI,
             functionName: 'updateStats',

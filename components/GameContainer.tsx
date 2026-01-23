@@ -16,6 +16,7 @@ interface Props {
   mission?: MissionConfig;
   mpConfig?: MPConfig;
   squad: { name: string, team: 'alpha' | 'bravo' }[];
+  activeAddress?: string;
   audioEnabled: boolean;
   difficultyModifier: number;
   virtualControlsEnabled: boolean;
@@ -248,9 +249,10 @@ const FloatingStick: React.FC<{
 import { useAccount } from 'wagmi';
 import { useBlockchainStats } from '../utils/blockchain';
 
-const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, roomId, isHost, gameMode, mission, mpConfig, squad, audioEnabled, difficultyModifier, virtualControlsEnabled, onExit, onMissionComplete, onNextLevel }) => {
-  const { address } = useAccount();
-  const { recordKill, recordWin } = useBlockchainStats();
+const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, roomId, isHost, gameMode, mission, mpConfig, squad, activeAddress, audioEnabled, difficultyModifier, virtualControlsEnabled, onExit, onMissionComplete, onNextLevel }) => {
+  const { address: wagmiAddress } = useAccount();
+  const address = activeAddress || wagmiAddress;
+  const { recordKill, recordWin, syncStats } = useBlockchainStats();
   const prevKillsRef = useRef(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -333,10 +335,11 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
       setVictoryData(e.detail);
       onMissionComplete();
 
-      // Record on-chain win if wallet connected and mission was successful
+      // Record game results on-chain if wallet connected and mission was successful
       if (address && !e.detail.failed) {
-        console.log("RECORDING ON-CHAIN WIN FOR:", address);
-        recordWin(address);
+        console.log("SYNCING FINAL MISSION RESULTS FOR:", address);
+        // Consolidate kills and win status in a single transaction at the end
+        syncStats(e.detail.kills || 0, 1);
       }
     };
 
@@ -408,11 +411,10 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
       if ((window as any).gameStats) {
         const newStats = { ...(window as any).gameStats };
 
-        // Record on-chain kill if kills increased and wallet is connected
-        if (address && newStats.kills > prevKillsRef.current) {
-          console.log("RECORDING ON-CHAIN KILL. TOTAL:", newStats.kills);
-          recordKill(address);
-        }
+        // REMOVED: No longer recording individual kills on-chain during gameplay
+        // to prevent frequent signature interruptions. 
+        // We will sync total results at the end of the mission.
+
         prevKillsRef.current = newStats.kills;
 
         if (gameMode === 'mission') {

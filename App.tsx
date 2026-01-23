@@ -1,9 +1,10 @@
-
+import path from 'path'; // Wait, I don't need path here usually, but let's check existing imports
 import React, { useState, useEffect } from 'react';
 import Lobby from './components/Lobby';
 import GameContainer from './components/GameContainer';
 import CreativeSuite from './components/CreativeSuite';
 import VibeAssistant from './components/VibeAssistant';
+import WalletConnect from './components/WalletConnect';
 
 export type AppState = 'boot' | 'wallet-auth' | 'lobby' | 'playing' | 'labs';
 export type GameMode = 'bot' | 'multiplayer' | 'mission';
@@ -115,8 +116,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { config } from './wagmi-config';
-import WalletConnect from './components/WalletConnect';
-import { initializeFarcaster, isInFarcaster, getFarcasterDisplayName, getFarcasterCustodyAddress } from './utils/farcaster';
+import { MiniKitProvider, useMiniKit } from '@coinbase/onchainkit/minikit';
+import { sdk } from '@farcaster/miniapp-sdk';
+import { isInFarcaster, getFarcasterDisplayName, getFarcasterCustodyAddress, getFarcasterFid } from './utils/farcaster';
 import { ConnectWallet, Wallet } from '@coinbase/onchainkit/wallet';
 import { Avatar, Name } from '@coinbase/onchainkit/identity';
 
@@ -214,6 +216,7 @@ const App: React.FC = () => {
         <OnchainKitProvider
           apiKey={import.meta.env.VITE_ONCHAINKIT_API_KEY}
           chain={base}
+          miniKit={{ enabled: true }}
           config={{
             appearance: {
               mode: 'dark',
@@ -224,7 +227,9 @@ const App: React.FC = () => {
             }),
           }}
         >
-          <AppContent />
+          <MiniKitProvider>
+            <AppContent />
+          </MiniKitProvider>
         </OnchainKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
@@ -236,31 +241,91 @@ const AppContent: React.FC = () => {
   const { address } = useAccount();
   const { data: nameData } = useName({ address: address as `0x${string}` });
 
-  // Use Farcaster username if available, then Basename/ENS, otherwise generate random operator ID
+  // Use Basename/ENS, otherwise generate random operator ID
   const [fallbackId] = useState('OPERATOR_' + Math.floor(Math.random() * 9999));
-  // Farcaster wallet integration
-  const farcasterAddress = isInFarcaster() ? getFarcasterCustodyAddress() : null;
 
-  // Ensure we only use string values (not Proxy/Function objects)
-  const validFarcasterName = (typeof farcasterName === 'string' && farcasterName) ? farcasterName : null;
-  const validResolvedName = (typeof resolvedName === 'string' && resolvedName) ? resolvedName : null;
+  const { setMiniAppReady } = useMiniKit();
 
-  // Make playerName mutable state that initializes from Web3 identities
-  const [playerName, setPlayerName] = useState(validFarcasterName || validResolvedName || fallbackId);
+  // Identity and Wallet State
+  const [playerName, setPlayerName] = useState(fallbackId);
+  const [farcasterAddress, setFarcasterAddress] = useState<string | null>(null);
+  const [farcasterFid, setFarcasterFid] = useState<number | null>(null);
+  const [isVerified, setIsVerified] = useState(false);
 
-  // Update playerName when Web3 identity resolves
+  // Update playerName when Web3/Farcaster identity resolves
   useEffect(() => {
-    const newName = validFarcasterName || validResolvedName || fallbackId;
-    setPlayerName(newName);
-  }, [validFarcasterName, validResolvedName, fallbackId]);
+    const resolveIdentity = async () => {
+      // 1. Try Farcaster Display Name
+      if (isInFarcaster()) {
+        const fName = await getFarcasterDisplayName();
+        if (fName) {
+          setPlayerName(fName);
+          return;
+        }
+      }
 
-  // Handle direct Farcaster authentication
+      // 2. Try Resolved Name (Basename/ENS)
+      const resolvedName = nameData && typeof nameData === 'object' ? (nameData as any).name : nameData;
+      if (typeof resolvedName === 'string' && resolvedName) {
+        setPlayerName(resolvedName);
+        return;
+      }
+
+      // 3. Fallback to Random ID
+      setPlayerName(fallbackId);
+    };
+    resolveIdentity();
+  }, [nameData, fallbackId]);
+
+  // Handle direct Farcaster authentication and Quick Auth
   useEffect(() => {
-    if (view === 'wallet-auth' && farcasterAddress) {
-      console.log('[App] Farcaster custody address detected:', farcasterAddress);
-      setView('lobby');
-    }
-  }, [view, farcasterAddress]);
+    const checkFarcasterAuth = async () => {
+      if (isInFarcaster()) {
+        const addr = await getFarcasterCustodyAddress();
+        if (addr) {
+          console.log('[App] Farcaster address detected:', addr);
+          setFarcasterAddress(addr);
+        }
+
+        // Fetch FID independently
+        const fid = await getFarcasterFid();
+        if (fid) {
+          console.log('[App] Farcaster FID detected:', fid);
+          setFarcasterFid(fid);
+        }
+
+        // --- QUICK AUTH INTEGRATION ---
+        try {
+          console.log('[App] Starting Quick Auth...');
+
+          // Using documented sdk.quickAuth.fetch which handles token injection automatically
+          const response = await sdk.quickAuth.fetch('/api/auth');
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('[App] Quick Auth verified successfully:', data);
+            setIsVerified(true);
+            // If the backend returns a different FID, trust the verified one
+            if (data.fid) setFarcasterFid(Number(data.fid));
+          } else {
+            console.warn('[App] Quick Auth verification failed');
+          }
+        } catch (authError) {
+          console.warn('[App] Quick Auth failed (possibly not supported in this client):', authError);
+        }
+        // ------------------------------
+
+        // Auto-skip wallet auth if in Farcaster (if we have an address or are verified)
+        if ((addr || isVerified) && (view === 'wallet-auth' || view === 'boot')) {
+          setTimeout(() => setView('lobby'), 800);
+        }
+      }
+    };
+    checkFarcasterAuth();
+  }, [view, isVerified]);
+
+  // Unified address: Prioritize Wagmi (if manually connected) then Farcaster
+  const activeAddress = address || farcasterAddress;
 
   const [characterClass, setCharacterClass] = useState<CharacterClass>('STRIKER');
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -277,10 +342,12 @@ const AppContent: React.FC = () => {
   const [difficultyModifier, setDifficultyModifier] = useState(1);
   const [virtualControlsEnabled, setVirtualControlsEnabled] = useState(false);
 
-  // Initialize Farcaster SDK immediately on app mount
+  // Initialize MiniKit and signal app is ready when lobby is reached
   useEffect(() => {
-    initializeFarcaster().catch(console.error);
-  }, []);
+    if (view === 'lobby') {
+      setMiniAppReady();
+    }
+  }, [view, setMiniAppReady]);
 
   const startCombat = (room: string | null, host: boolean, mode: GameMode, levelId?: number, squadMembers?: { name: string, team: 'alpha' | 'bravo' }[], mpSettings?: MPConfig) => {
     setRoomId(room);
@@ -312,16 +379,27 @@ const AppContent: React.FC = () => {
   return (
     <div className={`min-h-screen bg-[#050505] text-stone-100 font-mono selection:bg-orange-500/30 overflow-hidden flex flex-col relative`}>
       <VibeAssistant />
-      <WalletConnect />
+      <WalletConnect fid={farcasterFid} />
 
       <main className="relative flex-1 flex flex-col">
-        {view === 'boot' && <BootSequence onComplete={() => setView('wallet-auth')} />}
+        {view === 'boot' && (
+          <BootSequence
+            onComplete={() => {
+              if (isInFarcaster()) {
+                setView('lobby');
+              } else {
+                setView('wallet-auth');
+              }
+            }}
+          />
+        )}
         {view === 'wallet-auth' && <WalletAuthScreen onComplete={() => setView('lobby')} />}
 
         {view === 'lobby' && (
           <Lobby
             playerName={playerName}
             setPlayerName={setPlayerName}
+            activeAddress={activeAddress || undefined}
             characterClass={characterClass}
             setCharacterClass={setCharacterClass}
             avatar={avatar}
@@ -329,6 +407,7 @@ const AppContent: React.FC = () => {
             missions={MISSIONS}
             onStart={startCombat}
             onLabs={() => setView('labs')}
+            isVerified={isVerified}
             settings={{
               audioEnabled,
               setAudioEnabled,
@@ -351,6 +430,7 @@ const AppContent: React.FC = () => {
             mission={gameMode === 'mission' ? MISSIONS.find(m => m.id === activeLevelId) : undefined}
             mpConfig={mpConfig || undefined}
             squad={squad}
+            activeAddress={activeAddress || undefined}
             audioEnabled={audioEnabled}
             difficultyModifier={difficultyModifier}
             virtualControlsEnabled={virtualControlsEnabled}

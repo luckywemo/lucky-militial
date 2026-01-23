@@ -10,6 +10,7 @@ export const config = createConfig({
             appName: 'Lucky Militia',
             preference: 'all' // Shows both Coinbase Wallet and Smart Wallet options
         }),
+        /*
         walletConnect({
             projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'demo',
             metadata: {
@@ -20,6 +21,7 @@ export const config = createConfig({
             },
             showQrModal: true
         }),
+        */
         injected({
             target: 'metaMask'
         }),

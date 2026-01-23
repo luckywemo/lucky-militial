@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Peer, { DataConnection } from 'peerjs';
 import { GameMode, CharacterClass, MissionConfig, MPMatchMode, MPMap, MPConfig } from '../App';
 import { useReadContract, useAccount } from 'wagmi';
-import { CONTRACT_ADDRESSES } from '../utils/blockchain';
+import { CONTRACT_ADDRESSES, useBlockchainStats } from '../utils/blockchain';
 import Arsenal from './Arsenal';
 import Leaderboard from './Leaderboard';
 import { parseEther } from 'viem';
@@ -50,6 +50,7 @@ interface Props {
   setCharacterClass: (c: CharacterClass) => void;
   avatar: string | null;
   unlockedLevel: number;
+  activeAddress?: string;
   missions: MissionConfig[];
   onStart: (roomId: string | null, isHost: boolean, mode: GameMode, levelId?: number, squad?: SquadMember[], mpConfig?: MPConfig) => void;
   onLabs: () => void;
@@ -61,6 +62,7 @@ interface Props {
     virtualControlsEnabled: boolean;
     setVirtualControlsEnabled: (v: boolean) => void;
   };
+  isVerified?: boolean;
 }
 
 const CLASS_META: Record<CharacterClass, { desc: string; hp: number; speed: number; armor: number; tech: number; icon: string; color: string }> = {
@@ -96,17 +98,17 @@ const PersonnelCard: React.FC<{ member: SquadMember, isSelf: boolean }> = ({ mem
   );
 };
 
-const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, setCharacterClass, avatar, unlockedLevel, missions, onStart, onLabs, settings }) => {
+const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, setCharacterClass, avatar, unlockedLevel, activeAddress, missions, onStart, onLabs, settings, isVerified }) => {
   const [tab, setTab] = useState<'profile' | 'missions' | 'multiplayer' | 'arsenal' | 'leaderboard' | 'controls' | 'settings'>('profile');
-  const { address } = useAccount();
+  const userAddress = activeAddress;
 
   // Token gating check for Bio-Forge (Labs)
   const { data: lmtBalance } = useReadContract({
     address: CONTRACT_ADDRESSES.REWARDS as `0x${string}`,
     abi: [{ name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] }] as const,
     functionName: 'balanceOf',
-    args: address ? [address as `0x${string}`] : undefined,
-    query: { enabled: !!address },
+    args: userAddress ? [userAddress as `0x${string}`] : undefined,
+    query: { enabled: !!userAddress },
   });
 
   const hasLabAccess = lmtBalance ? lmtBalance >= parseEther('100') : false;
@@ -127,6 +129,9 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
   const peerRef = useRef<Peer | null>(null);
   const connections = useRef<DataConnection[]>([]);
   const squadRef = useRef<SquadMember[]>(squad);
+  const [isDeploying, setIsDeploying] = useState(false);
+
+  const { recordKill, recordWin, syncStats } = useBlockchainStats();
 
   useEffect(() => {
     squadRef.current = squad;
@@ -385,9 +390,22 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
     }
   };
 
-  const deploy = () => {
+  const deploy = async () => {
     if (tab === 'multiplayer' && activeRoom) {
       if (isHost) {
+        // Multi-player session registration (optional, but good for tracking)
+        if (userAddress) {
+          setIsDeploying(true);
+          try {
+            await syncStats(0, 0); // Register start of game on-chain
+            console.log('[Lobby] Session registered on-chain');
+          } catch (err) {
+            console.error('[Lobby] Transaction failed:', err);
+            // We proceed anyway to not block gameplay if the user cancels
+          }
+          setIsDeploying(false);
+        }
+
         const mapSeed = Math.random().toString(36).substring(2, 12).toUpperCase();
         const config: MPConfig = { mode: mpMatchMode, map: mpMap, alphaBots, bravoBots, scoreLimit, mapSeed };
         connections.current.forEach(c => c.send({
@@ -398,6 +416,18 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
         onStart(activeRoom, true, 'multiplayer', undefined, squadRef.current, config);
       }
     } else {
+      // Mission mode session registration
+      if (userAddress) {
+        setIsDeploying(true);
+        try {
+          // Increment games played on-chain before starting
+          await syncStats(0, 0);
+          console.log('[Lobby] Mission session registered on-chain');
+        } catch (err) {
+          console.error('[Lobby] Transaction failed:', err);
+        }
+        setIsDeploying(false);
+      }
       onStart(null, true, 'mission', selectedLevelId);
     }
   };
@@ -422,12 +452,14 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
               <label className="text-[7px] lg:text-[10px] font-black text-orange-500/70 uppercase tracking-widest mb-1 block flex items-center gap-2">
                 Operator_ID
                 {isInFarcaster() && <span className="text-[6px] text-purple-400">🟣 Farcaster</span>}
-                {!isInFarcaster() && address && <span className="text-[6px] text-cyan-400">🔗 Web3</span>}
+                {!isInFarcaster() && userAddress && <span className="text-[6px] text-cyan-400">🔗 Web3</span>}
               </label>
               <div className="w-full bg-black/60 border border-stone-800 p-2 lg:p-4 text-xs lg:text-xl font-black text-white rounded shadow-inner flex items-center justify-between">
                 <span className="truncate">{playerName}</span>
-                {address && (
-                  <span className="text-[8px] text-stone-600 ml-2 flex-shrink-0">VERIFIED</span>
+                {isVerified ? (
+                  <span className="text-[8px] text-green-500 ml-2 flex-shrink-0 animate-pulse">CRYPT_VERIFIED</span>
+                ) : userAddress && (
+                  <span className="text-[8px] text-stone-600 ml-2 flex-shrink-0">LINKED</span>
                 )}
               </div>
             </div>
@@ -645,7 +677,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
             )}
 
             {tab === 'profile' && (
-              <ProfileDashboard playerName={playerName} />
+              <ProfileDashboard playerName={playerName} activeAddress={activeAddress} isVerified={isVerified} />
             )}
 
             {tab === 'arsenal' && (
@@ -807,11 +839,16 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
           </div>
 
           <button
-            disabled={tab === 'multiplayer' && (!activeRoom || !isHost || squad.length < 2)}
+            disabled={isDeploying || (tab === 'multiplayer' && (!activeRoom || !isHost || squad.length < 2))}
             onClick={deploy}
-            className="hidden lg:block py-6 lg:py-12 bg-white disabled:bg-stone-900 disabled:text-stone-800 text-stone-950 font-stencil text-2xl lg:text-5xl tracking-[0.2em] transition-all rounded-2xl border-b-8 border-stone-300 active:translate-y-1 active:border-b-2 hover:bg-orange-600 hover:text-white"
+            className="hidden lg:block py-6 lg:py-12 bg-white disabled:bg-stone-900 disabled:text-stone-800 text-stone-950 font-stencil text-2xl lg:text-5xl tracking-[0.2em] transition-all rounded-2xl border-b-8 border-stone-300 active:translate-y-1 active:border-b-2 hover:bg-orange-600 hover:text-white relative overflow-hidden"
           >
-            DEPLOY
+            {isDeploying ? (
+              <div className="flex items-center justify-center gap-4">
+                <div className="w-8 h-8 border-4 border-stone-800 border-t-orange-500 rounded-full animate-spin"></div>
+                <span>UPLINKING...</span>
+              </div>
+            ) : 'DEPLOY'}
           </button>
         </div>
       </div>
@@ -823,11 +860,16 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
           <span className="text-[9px] font-black text-white uppercase tracking-widest">{characterClass} // READY</span>
         </div>
         <button
-          disabled={tab === 'multiplayer' && (!activeRoom || !isHost || squad.length < 2)}
+          disabled={isDeploying || (tab === 'multiplayer' && (!activeRoom || !isHost || squad.length < 2))}
           onClick={deploy}
-          className="px-6 py-3 bg-orange-600 text-white font-black text-[10px] uppercase tracking-widest rounded border-b-4 border-orange-800 active:translate-y-1 active:border-b-0 disabled:bg-stone-800 disabled:text-stone-600 transition-all shadow-lg"
+          className="px-6 py-3 bg-orange-600 text-white font-black text-[10px] uppercase tracking-widest rounded border-b-4 border-orange-800 active:translate-y-1 active:border-b-0 disabled:bg-stone-800 disabled:text-stone-600 transition-all shadow-lg flex items-center gap-2"
         >
-          Tactical Deployment
+          {isDeploying ? (
+            <>
+              <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+              <span>LINKING...</span>
+            </>
+          ) : 'Tactical Deployment'}
         </button>
       </div>
     </div>

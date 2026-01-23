@@ -2,17 +2,32 @@
 import React from 'react';
 import { useAccount, useReadContract } from 'wagmi';
 import { CONTRACT_ADDRESSES } from '../utils/blockchain';
-import { getFarcasterUser, getFarcasterPfpUrl } from '../utils/farcaster';
+import { getFarcasterUser, getFarcasterPfpUrl, isInFarcaster } from '../utils/farcaster';
 import { formatUnits } from 'viem';
 
 interface ProfileDashboardProps {
     playerName: string;
+    activeAddress?: string;
+    isVerified?: boolean;
 }
 
-const ProfileDashboard: React.FC<ProfileDashboardProps> = ({ playerName }) => {
-    const { address } = useAccount();
-    const farcasterUser = getFarcasterUser();
-    const pfp = getFarcasterPfpUrl();
+const ProfileDashboard: React.FC<ProfileDashboardProps> = ({ playerName, activeAddress, isVerified }) => {
+    const [farcasterUser, setFarcasterUser] = React.useState<any>(null);
+    const [pfp, setPfp] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        const loadFarcasterData = async () => {
+            if (isInFarcaster()) {
+                const user = await getFarcasterUser();
+                const pfpUrl = await getFarcasterPfpUrl();
+                setFarcasterUser(user);
+                setPfp(pfpUrl);
+            }
+        };
+        loadFarcasterData();
+    }, []);
+
+    const address = activeAddress;
 
     // Fetch LMT Balance
     const { data: lmtBalance } = useReadContract({
@@ -51,7 +66,11 @@ const ProfileDashboard: React.FC<ProfileDashboardProps> = ({ playerName }) => {
                 <div className="text-center sm:text-left flex-1 min-w-0">
                     <div className="flex items-center justify-center sm:justify-start gap-3 mb-1">
                         <h2 className="text-2xl lg:text-4xl font-black text-white truncate uppercase tracking-tight">{playerName}</h2>
-                        {farcasterUser && <span className="bg-purple-600/20 text-purple-400 text-[10px] px-2 py-0.5 rounded-full border border-purple-500/30">🟣 FARCASTER</span>}
+                        {farcasterUser && (
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full border ${isVerified ? 'bg-green-600/20 text-green-400 border-green-500/30' : 'bg-purple-600/20 text-purple-400 border-purple-500/30'}`}>
+                                🟣 {isVerified ? 'VERIFIED' : 'FARCASTER'}
+                            </span>
+                        )}
                     </div>
                     <p className="text-stone-500 text-xs lg:text-sm font-bold truncate opacity-80 mb-4">{address || 'OPERATOR_NOT_LINKED'}</p>
 
@@ -108,8 +127,9 @@ const ProfileDashboard: React.FC<ProfileDashboardProps> = ({ playerName }) => {
                         {[
                             { t: 'BOOT_UP', d: 'Operator recognized. System status: GREEN.' },
                             { t: 'WALLET_SYNC', d: 'Primary wallet address verified on Base chain.' },
-                            { t: 'SECURITY', d: 'Farcaster identity confirmed. SDK Ready.' }
-                        ].map((log, i) => (
+                            { t: 'SECURITY', d: 'Farcaster identity confirmed. SDK Ready.' },
+                            isVerified && { t: 'QUICK_AUTH', d: 'Cryptographic identity verified via Farcaster JWT.' }
+                        ].filter(Boolean).map((log: any, i) => (
                             <div key={i} className="border-l-2 border-orange-600/30 pl-4 py-1">
                                 <div className="text-[9px] font-black text-orange-500/70 mb-0.5">{log.t}</div>
                                 <div className="text-[11px] font-bold text-stone-400 capitalize">{log.d}</div>
