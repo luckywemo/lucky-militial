@@ -6,12 +6,12 @@
     },
     "frame": {
         "version": "1",
-        "name": "LuckyMilitia",
-        "iconUrl": "https://luckymilitia.xyz/logo.jpg",
+        "name": "Lucky Militia",
+        "iconUrl": "https://lucky-militial.vercel.app/logo.jpg",
         "homeUrl": "https://lucky-militial.vercel.app",
-        "imageUrl": "https://luckymilitia.xyz/logo.jpg",
-        "buttonTitle": "Deploy now",
-        "splashImageUrl": "https://lucky-militial.vercel.app/splash.jpg",
+        "imageUrl": "https://lucky-militial.vercel.app/logo.jpg",
+        "buttonTitle": "Play Now",
+        "splashImageUrl": "https://luckymilitia.xyz/logo.jpg",
         "splashBackgroundColor": "#050505",
         "webhookUrl": "https://lucky-militial.vercel.app/api/webhook"
     }
