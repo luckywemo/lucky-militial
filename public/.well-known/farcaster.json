@@ -9,9 +9,9 @@
         "name": "Lucky Militia",
         "iconUrl": "https://lucky-militial.vercel.app/logo.jpg",
         "homeUrl": "https://lucky-militial.vercel.app",
-        "imageUrl": "https://lucky-militial.vercel.app/logo.jpg",
+        "imageUrl": "https://luckymilitia.xyz/imageurl.jpg",
         "buttonTitle": "Play Now",
-        "splashImageUrl": "https://luckymilitia.xyz/logo.jpg",
+        "splashImageUrl": "https://luckymilitia.xyz/splash.jpg",
         "splashBackgroundColor": "#050505",
         "webhookUrl": "https://lucky-militial.vercel.app/api/webhook"
     }

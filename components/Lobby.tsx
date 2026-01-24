@@ -121,7 +121,6 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
 
   // Sync name/squad logic is now inside useMultiplayer hook
 
-  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
   const handleCreateRoom = () => createRoom();
   const handleJoinRoom = () => joinRoom(roomCode);

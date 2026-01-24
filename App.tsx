@@ -252,7 +252,12 @@ const AppContent: React.FC = () => {
 
   const { setMiniAppReady } = useMiniKit();
 
-  // Identity and Wallet State
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
+
+  // Settings State
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [difficultyModifier, setDifficultyModifier] = useState(1);
+  const [virtualControlsEnabled, setVirtualControlsEnabled] = useState(false);
   const [playerName, setPlayerName] = useState(fallbackId);
   const [farcasterAddress, setFarcasterAddress] = useState<string | null>(null);
   const [farcasterFid, setFarcasterFid] = useState<number | null>(null);
@@ -352,10 +357,43 @@ const AppContent: React.FC = () => {
   const [squad, setSquad] = useState<{ name: string, team: 'alpha' | 'bravo' }[]>([]);
   const [mpConfig, setMpConfig] = useState<MPConfig | null>(null);
 
-  // Settings State
-  const [audioEnabled, setAudioEnabled] = useState(true);
-  const [difficultyModifier, setDifficultyModifier] = useState(1);
-  const [virtualControlsEnabled, setVirtualControlsEnabled] = useState(false);
+  // Handle Background Music
+  useEffect(() => {
+    if (!bgMusicRef.current) {
+      bgMusicRef.current = new Audio('/assets/audio/bg-music.wav');
+      bgMusicRef.current.loop = true;
+      bgMusicRef.current.volume = 0.15;
+    }
+
+    if (audioEnabled && view !== 'boot') {
+      bgMusicRef.current.play().catch(err => {
+        console.warn('[Audio] Autoplay blocked or failed:', err);
+      });
+    } else {
+      bgMusicRef.current.pause();
+    }
+
+    return () => {
+      if (view === 'boot') bgMusicRef.current?.pause();
+    };
+  }, [audioEnabled, view]);
+
+  // Global Interaction Handler to resume audio context
+  useEffect(() => {
+    const resumeAudio = () => {
+      if (bgMusicRef.current && audioEnabled && view !== 'boot') {
+        bgMusicRef.current.play().catch(() => { });
+        window.removeEventListener('click', resumeAudio);
+        window.removeEventListener('touchstart', resumeAudio);
+      }
+    };
+    window.addEventListener('click', resumeAudio);
+    window.addEventListener('touchstart', resumeAudio);
+    return () => {
+      window.removeEventListener('click', resumeAudio);
+      window.removeEventListener('touchstart', resumeAudio);
+    };
+  }, [audioEnabled, view]);
 
   // Initialize MiniKit and signal app is ready when lobby is reached
   useEffect(() => {

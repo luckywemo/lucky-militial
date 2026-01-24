@@ -105,7 +105,6 @@ export class MainScene extends Phaser.Scene {
   private explosionEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private abilityEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private bloodEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
-  private bgMusic?: Phaser.Sound.BaseSound;
 
   constructor() {
     super('MainScene');
@@ -149,7 +148,6 @@ export class MainScene extends Phaser.Scene {
       { key: 'sfx_boost', path: '/assets/audio/thrust.mp3' },
       { key: 'sfx_death_human', path: '/assets/audio/alien-death.flac' },
       { key: 'sfx_victory', path: '/assets/audio/level-complete.wav' },
-      { key: 'music_loop', path: '/assets/audio/bg-music.wav' },
     ];
     audioFiles.forEach(({ key, path }) => {
       if (key !== 'music_loop' && !this.cache.audio.exists(key)) {
@@ -163,29 +161,23 @@ export class MainScene extends Phaser.Scene {
 
     // Fix browser autoplay restrictions: Resume audio context on first interaction
     this.input.once('pointerdown', () => {
-      if (this.sound.context.state === 'suspended') {
-        this.sound.context.resume().then(() => {
+      const soundManager = this.sound as Phaser.Sound.WebAudioSoundManager;
+      if (soundManager.context && soundManager.context.state === 'suspended') {
+        soundManager.context.resume().then(() => {
           console.log('[Audio] Context resumed successfully');
           this.initAudio();
         });
       }
     });
 
-    // Initialize audio if context is already running (uncommon on first load but possible on scene restart)
-    if (this.sound.context.state === 'running') {
+    // Initialize audio if context is already running
+    const soundManager = this.sound as Phaser.Sound.WebAudioSoundManager;
+    if (soundManager.context && soundManager.context.state === 'running') {
       this.initAudio();
     }
 
-    // Load large background music asynchronously so it doesn't block the "Deploy" button.
-    if (!this.cache.audio.exists('music_loop')) {
-      this.load.audio('music_loop', '/assets/audio/bg-music.wav');
-      this.load.once('complete', () => {
-        if (this.sound.context.state === 'running') {
-          this.initAudio();
-        }
-      });
-      this.load.start();
-    }
+    // SFX Initialization
+    this.initAudio();
 
     // Initialize seeded random for consistent map generation
     this.seededRnd = new Phaser.Math.RandomDataGenerator([this.roomId || 'mission-seed']);
@@ -407,11 +399,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private initAudio() {
-    if (!this.audioEnabled) return;
-    if (!this.bgMusic && this.cache.audio.exists('music_loop')) {
-      this.bgMusic = this.sound.add('music_loop', { loop: true, volume: 0.1 });
-      this.bgMusic.play();
-    }
+    // Only SFX initialization here if needed in the future
   }
 
   private playSound(key: string, volume = 0.5, randomizePitch = true) {
