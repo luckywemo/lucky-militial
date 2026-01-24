@@ -4,9 +4,9 @@ import { base } from 'wagmi/chains';
 
 // IMPORTANT: Replace these with your deployed contract addresses on Base
 export const CONTRACT_ADDRESSES = {
-    REWARDS: '0xD8D2dB6ED2dC089CAf56e25DC61401Ecc56F706C',
-    LEADERBOARD: '0xD8D2dB6ED2dC089CAf56e25DC61401Ecc56F706C',
-    SKINS: '0xD8D2dB6ED2dC089CAf56e25DC61401Ecc56F706C',
+    REWARDS: '0x4D206ee1514ADB5a43c695e8674a99F722Fa4957',
+    LEADERBOARD: '0x4D206ee1514ADB5a43c695e8674a99F722Fa4957',
+    SKINS: '0x4D206ee1514ADB5a43c695e8674a99F722Fa4957',
 };
 
 // Simplified ABIs for the core functions we need
