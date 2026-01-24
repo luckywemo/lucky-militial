@@ -10,7 +10,7 @@
         "iconUrl": "https://luckymilitia.xyz/logo.jpg",
         "homeUrl": "https://lucky-militial.vercel.app",
         "imageUrl": "https://luckymilitia.xyz/logo.jpg",
-        "buttonTitle": "Deploy",
+        "buttonTitle": "Deploy now",
         "splashImageUrl": "https://lucky-militial.vercel.app/splash.jpg",
         "splashBackgroundColor": "#050505",
         "webhookUrl": "https://lucky-militial.vercel.app/api/webhook"
