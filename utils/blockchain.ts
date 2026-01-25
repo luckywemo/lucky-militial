@@ -1,13 +1,16 @@
 import { useWriteContract, useReadContract, useAccount } from 'wagmi';
 import { parseEther } from 'viem';
-import { base } from 'wagmi/chains';
+import { base, baseSepolia } from 'wagmi/chains';
 
-// IMPORTANT: Replace these with your deployed contract addresses on Base
+// Contract addresses from environment variables
 export const CONTRACT_ADDRESSES = {
-    REWARDS: '0x4D206ee1514ADB5a43c695e8674a99F722Fa4957',
-    LEADERBOARD: '0x4D206ee1514ADB5a43c695e8674a99F722Fa4957',
-    SKINS: '0x4D206ee1514ADB5a43c695e8674a99F722Fa4957',
+    REWARDS: (import.meta.env.VITE_REWARDS_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`,
+    LEADERBOARD: (import.meta.env.VITE_LEADERBOARD_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`,
+    SKINS: (import.meta.env.VITE_SKINS_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`,
 };
+
+// Target network from environment variable
+export const TARGET_CHAIN = import.meta.env.VITE_NETWORK === 'base' ? base : baseSepolia;
 
 // Simplified ABIs for the core functions we need
 const REWARDS_ABI = [
@@ -39,7 +42,7 @@ export function useBlockchainStats() {
             functionName: 'recordKill',
             args: [playerAddress as `0x${string}`],
             account: address,
-            chain: base,
+            chain: TARGET_CHAIN,
         });
     };
 
@@ -51,7 +54,7 @@ export function useBlockchainStats() {
             functionName: 'recordWin',
             args: [playerAddress as `0x${string}`],
             account: address,
-            chain: base,
+            chain: TARGET_CHAIN,
         });
     };
 
