@@ -346,7 +346,7 @@ export class MainScene extends Phaser.Scene {
       else if (data.type === 'bot_sync') this.syncBots(data.bots);
       else if (data.type === 'game_over') {
         this.isMissionOver = true;
-        this.playSound('sfx_victory', 0.8, false);
+        this.playSound('sfx_victory', 0.4, false);
         window.dispatchEvent(new CustomEvent('MISSION_COMPLETE', { detail: { winner: data.winner } }));
       }
       else if (data.type === 'initial_sync') {
@@ -542,7 +542,7 @@ export class MainScene extends Phaser.Scene {
         this.isMissionOver = true;
         this.player.body.stop();
         this.player.body.enable = false;
-        this.playSound('sfx_victory', 0.8, false);
+        this.playSound('sfx_victory', 0.4, false);
         window.dispatchEvent(new CustomEvent('MISSION_COMPLETE', { detail: { kills: this.kills, points: this.points } }));
       }
     }
@@ -551,7 +551,7 @@ export class MainScene extends Phaser.Scene {
       if (this.teamScores.alpha >= this.mpConfig.scoreLimit || this.teamScores.bravo >= this.mpConfig.scoreLimit) {
         this.isMissionOver = true;
         const winner = this.teamScores.alpha >= this.mpConfig.scoreLimit ? 'ALPHA' : 'BRAVO';
-        this.playSound('sfx_victory', 0.8, false);
+        this.playSound('sfx_victory', 0.4, false);
         if (this.roomId) this.connections.forEach(c => c.send({ type: 'game_over', winner }));
         window.dispatchEvent(new CustomEvent('MISSION_COMPLETE', { detail: { winner, alpha: this.teamScores.alpha, bravo: this.teamScores.bravo } }));
       }
@@ -737,23 +737,23 @@ export class MainScene extends Phaser.Scene {
 
     this.aiBots.getChildren().forEach((bot: any) => {
       const team = bot.getData('team');
+      const botHp = bot.getData('hp');
+      const maxHp = bot.getData('maxHp');
+      const healthPercent = botHp / maxHp;
 
       // 1. FIND TARGETS
       let nearestTarget: any = null;
       let minDist = 800;
-      const allTargets: any[] = [];
 
       // Collect all potential targets
       if (this.playerTeam !== team) {
         const d = Phaser.Math.Distance.Between(bot.x, bot.y, this.player.x, this.player.y);
-        allTargets.push({ entity: this.player, dist: d });
         if (d < minDist) { nearestTarget = this.player; minDist = d; }
       }
 
       this.otherPlayers.forEach(p => {
         if (p.getData('team') !== team) {
           const d = Phaser.Math.Distance.Between(bot.x, bot.y, p.x, p.y);
-          allTargets.push({ entity: p, dist: d });
           if (d < minDist) { nearestTarget = p; minDist = d; }
         }
       });
@@ -761,132 +761,106 @@ export class MainScene extends Phaser.Scene {
       this.aiBots.getChildren().forEach((otherBot: any) => {
         if (otherBot !== bot && otherBot.getData('team') !== team) {
           const d = Phaser.Math.Distance.Between(bot.x, bot.y, otherBot.x, otherBot.y);
-          allTargets.push({ entity: otherBot, dist: d });
           if (d < minDist) { nearestTarget = otherBot; minDist = d; }
         }
       });
 
-      // 2. CHECK TEAMMATE CLUSTERING (spread positioning)
-      const teammates = this.aiBots.getChildren().filter((b: any) =>
-        b !== bot && b.getData('team') === team
-      );
+      // 2. TACTICAL FORCES
+      let finalForceX = 0;
+      let finalForceY = 0;
+      let moveSpeed = 160 * (0.8 + this.difficultyModifier * 0.2);
 
-      let clusterAvoidanceX = 0;
-      let clusterAvoidanceY = 0;
-      teammates.forEach((teammate: any) => {
-        const dist = Phaser.Math.Distance.Between(bot.x, bot.y, teammate.x, teammate.y);
-        if (dist < 150) { // Too close to teammate
-          const angle = Phaser.Math.Angle.Between(teammate.x, teammate.y, bot.x, bot.y);
-          clusterAvoidanceX += Math.cos(angle) * (150 - dist);
-          clusterAvoidanceY += Math.sin(angle) * (150 - dist);
+      // A. Bullet Avoidance Force
+      const avoidance = this.getBulletAvoidanceForce(bot);
+      finalForceX += avoidance.x * 2.0;
+      finalForceY += avoidance.y * 2.0;
+
+      // B. Teammate Separation (Cluster Avoidance)
+      this.aiBots.getChildren().forEach((teammate: any) => {
+        if (teammate !== bot && teammate.getData('team') === team) {
+          const dist = Phaser.Math.Distance.Between(bot.x, bot.y, teammate.x, teammate.y);
+          if (dist < 100) {
+            const angle = Phaser.Math.Angle.Between(teammate.x, teammate.y, bot.x, bot.y);
+            finalForceX += Math.cos(angle) * (100 - dist) * 0.5;
+            finalForceY += Math.sin(angle) * (100 - dist) * 0.5;
+          }
         }
       });
 
       if (nearestTarget) {
-        // 3. WEAPON SELECTION
-        let desiredWeaponKey = 'pistol';
-        if (minDist < 200) desiredWeaponKey = 'shotgun';
-        else if (minDist < 500) desiredWeaponKey = 'smg';
+        // C. Target Force (Movement relative to enemy)
+        const targetAngle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
 
-        if (bot.getData('weaponKey') !== desiredWeaponKey) {
-          bot.setData('weaponKey', desiredWeaponKey);
-          bot.setTexture(`hum_striker_${WEAPONS_CONFIG[desiredWeaponKey].category}`);
+        if (healthPercent < 0.35) {
+          // RETREAT/SEEK COVER
+          const coverPos = this.findCoverPosition(bot, nearestTarget);
+          if (coverPos) {
+            const coverAngle = Phaser.Math.Angle.Between(bot.x, bot.y, coverPos.x, coverPos.y);
+            finalForceX += Math.cos(coverAngle) * 1.5;
+            finalForceY += Math.sin(coverAngle) * 1.5;
+            moveSpeed *= 1.2;
+          } else {
+            // Backup if no cover: move away
+            finalForceX -= Math.cos(targetAngle) * 1.2;
+            finalForceY -= Math.sin(targetAngle) * 1.2;
+          }
+        } else {
+          // OFFENSIVE ENGAGEMENT
+          const wKey = bot.getData('weaponKey');
+          const optimalRange = wKey === 'shotgun' ? 150 : wKey === 'smg' ? 350 : 450;
+
+          if (minDist > optimalRange + 50) {
+            // Close in
+            finalForceX += Math.cos(targetAngle);
+            finalForceY += Math.sin(targetAngle);
+          } else if (minDist < optimalRange - 50) {
+            // Back up
+            finalForceX -= Math.cos(targetAngle);
+            finalForceY -= Math.sin(targetAngle);
+          }
+
+          // D. Strafing (Jittery movement)
+          const strafeDirection = (bot.getData('id').charCodeAt(0) % 2 === 0 ? 1 : -1);
+          const strafeAngle = targetAngle + (Math.PI / 2) * strafeDirection;
+          const jitter = Math.sin(time * 0.005 + bot.getData('id').length) * 0.5;
+          finalForceX += Math.cos(strafeAngle + jitter) * 0.8;
+          finalForceY += Math.sin(strafeAngle + jitter) * 0.8;
         }
 
-        const wConfig = WEAPONS_CONFIG[bot.getData('weaponKey')];
-
-        // 4. TACTICAL POSITIONING
-        const botHp = bot.getData('hp');
-        const maxHp = bot.getData('maxHp');
-        const healthPercent = botHp / maxHp;
-
-        let targetX = nearestTarget.x;
-        let targetY = nearestTarget.y;
-        let moveSpeed = 150 * (0.8 + this.difficultyModifier * 0.2);
-
-        // RETREAT if low health
-        if (healthPercent < 0.3) {
-          // Move away from target
-          const retreatAngle = Phaser.Math.Angle.Between(nearestTarget.x, nearestTarget.y, bot.x, bot.y);
-          targetX = bot.x + Math.cos(retreatAngle) * 300;
-          targetY = bot.y + Math.sin(retreatAngle) * 300;
-          moveSpeed *= 1.3; // Move faster when retreating
-        }
-        // FLANKING behavior - circle around target
-        else if (minDist > 250 && minDist < 600) {
-          const baseAngle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
-          // Add perpendicular offset for flanking
-          const flankOffset = (bot.getData('id').charCodeAt(0) % 2 === 0) ? Math.PI / 3 : -Math.PI / 3;
-          const flankAngle = baseAngle + flankOffset;
-          targetX = nearestTarget.x + Math.cos(flankAngle) * 250;
-          targetY = nearestTarget.y + Math.sin(flankAngle) * 250;
-        }
-        // CLOSE COMBAT - strafe around target
-        else if (minDist < 250) {
-          const strafeAngle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
-          const strafeDirection = Math.sin(time * 0.002) > 0 ? 1 : -1;
-          targetX = bot.x + Math.cos(strafeAngle + Math.PI / 2 * strafeDirection) * 100;
-          targetY = bot.y + Math.sin(strafeAngle + Math.PI / 2 * strafeDirection) * 100;
+        // 3. OBJECTIVE FORCE (Hardpoint)
+        if (this.mpConfig?.mode === 'HARDPOINT') {
+          const objDist = Phaser.Math.Distance.Between(bot.x, bot.y, this.hardpointCenter.x, this.hardpointCenter.y);
+          const objAngle = Phaser.Math.Angle.Between(bot.x, bot.y, this.hardpointCenter.x, this.hardpointCenter.y);
+          // Only pull to objective if not in immediate danger or already close to target
+          const objPriority = (healthPercent > 0.5 && minDist > 300) ? 1.2 : 0.4;
+          finalForceX += Math.cos(objAngle) * objPriority;
+          finalForceY += Math.sin(objAngle) * objPriority;
         }
 
-        // 5. APPLY CLUSTER AVOIDANCE
-        if (clusterAvoidanceX !== 0 || clusterAvoidanceY !== 0) {
-          targetX += clusterAvoidanceX * 0.5;
-          targetY += clusterAvoidanceY * 0.5;
+        // Apply movement
+        if (finalForceX !== 0 || finalForceY !== 0) {
+          const finalAngle = Math.atan2(finalForceY, finalForceX);
+          this.physics.velocityFromRotation(finalAngle, moveSpeed, bot.body.velocity);
         }
 
-        // 6. MOVEMENT
-        const moveAngle = Phaser.Math.Angle.Between(bot.x, bot.y, targetX, targetY);
-        this.physics.velocityFromRotation(moveAngle, moveSpeed, bot.body.velocity);
-
-        // 7. AIMING (always aim at target, not movement direction)
+        // 4. AIMING & SHOOTING
         const aimAngle = Phaser.Math.Angle.Between(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
         bot.rotation = aimAngle;
 
-        // 8. INTELLIGENT SHOOTING
-        const delay = Math.max(0.8, 2.5 / this.difficultyModifier);
+        const wConfig = WEAPONS_CONFIG[bot.getData('weaponKey')] || WEAPONS_CONFIG.pistol;
+        const delay = Math.max(0.7, 2.2 / this.difficultyModifier);
+
         if (time > bot.getData('lastShot') + wConfig.fireRate * delay) {
-          // Check if we have line of sight to target
           const hasLOS = this.hasLineOfSight(bot.x, bot.y, nearestTarget.x, nearestTarget.y);
+          const targetInSafeZone = this.safeZoneTimer > 0 && (nearestTarget === this.player);
 
-          // Track target changes and reaction time
-          const currentTarget = bot.getData('currentTarget');
-          const targetId = nearestTarget.getData ? nearestTarget.getData('id') : 'player';
-
-          if (currentTarget !== targetId) {
-            // New target acquired - set reaction delay
-            bot.setData('currentTarget', targetId);
-            bot.setData('targetAcquiredTime', time);
-          }
-
-          const timeSinceAcquired = time - bot.getData('targetAcquiredTime');
-          const reactionDelay = bot.getData('reactionDelay');
-
-          // Only shoot if:
-          // 1. Target is in range
-          // 2. Bot has line of sight
-          // 3. Bot is not retreating (health > 20%)
-          // 4. Reaction delay has passed
-          // 5. Target is not in safe zone (first 5 seconds of battle)
-          const targetInSafeZone = this.safeZoneTimer > 0 && targetId === 'player';
-
-          if (minDist < 700 &&
-            healthPercent > 0.2 &&
-            hasLOS &&
-            timeSinceAcquired > reactionDelay &&
-            !targetInSafeZone) {
-
-            // Calculate aim error based on distance and difficulty
-            // Closer targets = more accurate, higher difficulty = more accurate
-            const baseAimError = (minDist / 700) * 0.4; // 0 to 0.4 radians based on distance
-            const difficultyFactor = 1 - (this.difficultyModifier - 1) * 0.3; // Reduce error on higher difficulty
+          if (minDist < 800 && hasLOS && !targetInSafeZone && healthPercent > 0.15) {
+            const baseAimError = (minDist / 800) * 0.35;
+            const difficultyFactor = 1 - (this.difficultyModifier - 1) * 0.25;
             const aimError = baseAimError * difficultyFactor;
 
-            // Apply aim error to each bullet
             for (let i = 0; i < wConfig.bullets; i++) {
-              const spreadError = (Math.random() - 0.5) * wConfig.spread;
-              const accuracyError = (Math.random() - 0.5) * aimError;
-              const finalAngle = aimAngle + spreadError + accuracyError;
+              const finalAngle = aimAngle + (Math.random() - 0.5) * (wConfig.spread + aimError);
               this.spawnBullet(bot.x, bot.y, finalAngle, wConfig.key, 'bot', team);
             }
             bot.setData('lastShot', time);
@@ -894,30 +868,79 @@ export class MainScene extends Phaser.Scene {
           }
         }
       } else {
-        // NO TARGET - patrol behavior
-        if (!bot.getData('patrolTarget') || Math.random() < 0.01) {
-          bot.setData('patrolTarget', {
-            x: Phaser.Math.Between(200, 1800),
-            y: Phaser.Math.Between(200, 1800)
-          });
+        // PATROL behavior (when no target)
+        if (!bot.getData('patrolTarget') || Math.random() < 0.005) {
+          bot.setData('patrolTarget', { x: Phaser.Math.Between(300, 1700), y: Phaser.Math.Between(300, 1700) });
         }
-
         const patrol = bot.getData('patrolTarget');
-        const patrolDist = Phaser.Math.Distance.Between(bot.x, bot.y, patrol.x, patrol.y);
-
-        if (patrolDist > 50) {
-          const patrolAngle = Phaser.Math.Angle.Between(bot.x, bot.y, patrol.x, patrol.y);
-          this.physics.velocityFromRotation(patrolAngle, 100, bot.body.velocity);
-          bot.rotation = patrolAngle;
-        } else {
-          bot.body.velocity.scale(0.95);
-        }
+        const patrolAngle = Phaser.Math.Angle.Between(bot.x, bot.y, patrol.x, patrol.y);
+        this.physics.velocityFromRotation(patrolAngle, 80, bot.body.velocity);
+        bot.rotation = patrolAngle;
       }
 
-      // Update label position
+      // Update label
       const label = this.botLabels.get(bot.getData('id'));
       if (label) label.setPosition(bot.x, bot.y - 50);
     });
+  }
+
+  private getBulletAvoidanceForce(bot: any): Phaser.Math.Vector2 {
+    const force = new Phaser.Math.Vector2(0, 0);
+    const detectionRadius = 150;
+    const botTeam = bot.getData('team');
+
+    this.bullets.getChildren().forEach((b: any) => {
+      if (b.active && b.getData('team') !== botTeam) {
+        const dist = Phaser.Math.Distance.Between(bot.x, bot.y, b.x, b.y);
+        if (dist < detectionRadius) {
+          // Calculate perpendicular vector to bullet velocity
+          const bulletVel = b.body.velocity;
+          const toBullet = new Phaser.Math.Vector2(b.x - bot.x, b.y - bot.y);
+
+          // Dot product to see if bullet is moving towards bot
+          const dot = bulletVel.x * (-toBullet.x) + bulletVel.y * (-toBullet.y);
+          if (dot > 0) {
+            // Perpendicular avoidance
+            const perpX = -bulletVel.y;
+            const perpY = bulletVel.x;
+            const side = (toBullet.x * perpX + toBullet.y * perpY) > 0 ? 1 : -1;
+
+            force.x += (perpX * side) / dist;
+            force.y += (perpY * side) / dist;
+          }
+        }
+      }
+    });
+
+    return force.normalize();
+  }
+
+  private findCoverPosition(bot: any, target: any): { x: number, y: number } | null {
+    const walls = this.walls.getChildren();
+    let bestCoverPos = null;
+    let maxSafety = 0;
+
+    // Check a few nearby walls
+    const nearbyWalls = walls.filter((w: any) => Phaser.Math.Distance.Between(bot.x, bot.y, w.x, w.y) < 400);
+
+    nearbyWalls.forEach((wall: any) => {
+      // Logic: Position yourself so the wall is between you and the target
+      const angleToTarget = Phaser.Math.Angle.Between(wall.x, wall.y, target.x, target.y);
+      const coverX = wall.x - Math.cos(angleToTarget) * 80;
+      const coverY = wall.y - Math.sin(angleToTarget) * 80;
+
+      // Check if this position is actually safe (blocks LOS)
+      if (!this.hasLineOfSight(coverX, coverY, target.x, target.y)) {
+        const dist = Phaser.Math.Distance.Between(bot.x, bot.y, coverX, coverY);
+        const safety = 1000 / (dist + 1); // Prefer closer cover
+        if (safety > maxSafety) {
+          maxSafety = safety;
+          bestCoverPos = { x: coverX, y: coverY };
+        }
+      }
+    });
+
+    return bestCoverPos;
   }
 
   private updateHardpoint(time: number) {

@@ -18,7 +18,8 @@ export default function Leaderboard() {
     });
 
     const operatorCount = Number(count || 0);
-    const indices = useMemo(() => Array.from({ length: Math.min(operatorCount, 10) }, (_, i) => BigInt(i)), [operatorCount]);
+    // Increase limit to 500 to capture the global player base in early stages
+    const indices = useMemo(() => Array.from({ length: Math.min(operatorCount, 500) }, (_, i) => BigInt(i)), [operatorCount]);
 
     const { data: operatorAddresses, isLoading: operatorsLoading } = useReadContracts({
         contracts: indices.map(index => ({
