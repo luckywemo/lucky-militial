@@ -1,10 +1,21 @@
-import path from 'path'; // Wait, I don't need path here usually, but let's check existing imports
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Lobby from './components/Lobby';
 import GameContainer from './components/GameContainer';
 import CreativeSuite from './components/CreativeSuite';
 import VibeAssistant from './components/VibeAssistant';
 import WalletConnect from './components/WalletConnect';
+import { OnchainKitProvider } from '@coinbase/onchainkit';
+import { useName } from '@coinbase/onchainkit/identity';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { WagmiProvider, useAccount, useConnect } from 'wagmi';
+import { base } from 'wagmi/chains';
+import { config } from './wagmi-config';
+import { MiniKitProvider, useMiniKit } from '@coinbase/onchainkit/minikit';
+import { sdk } from '@farcaster/miniapp-sdk';
+import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
+import { isInFarcaster, getFarcasterDisplayName, getFarcasterCustodyAddress, getFarcasterFid } from './utils/farcaster';
+import { ConnectWallet, Wallet } from '@coinbase/onchainkit/wallet';
+import { Avatar, Name } from '@coinbase/onchainkit/identity';
 
 export type AppState = 'boot' | 'wallet-auth' | 'lobby' | 'playing' | 'labs';
 export type GameMode = 'bot' | 'multiplayer' | 'mission';
@@ -112,18 +123,6 @@ const BootSequence: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   );
 };
 
-import { OnchainKitProvider } from '@coinbase/onchainkit';
-import { useName } from '@coinbase/onchainkit/identity';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiProvider, useAccount, useConnect } from 'wagmi';
-import { base } from 'wagmi/chains';
-import { config } from './wagmi-config';
-import { MiniKitProvider, useMiniKit } from '@coinbase/onchainkit/minikit';
-import { sdk } from '@farcaster/miniapp-sdk';
-import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
-import { isInFarcaster, getFarcasterDisplayName, getFarcasterCustodyAddress, getFarcasterFid } from './utils/farcaster';
-import { ConnectWallet, Wallet } from '@coinbase/onchainkit/wallet';
-import { Avatar, Name } from '@coinbase/onchainkit/identity';
 
 const queryClient = new QueryClient();
 
