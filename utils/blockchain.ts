@@ -19,6 +19,8 @@ const REWARDS_ABI = [
 const LEADERBOARD_ABI = [
     { name: 'updateStats', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'operator', type: 'address' }, { name: 'kills', type: 'uint256' }, { name: 'wins', type: 'uint256' }, { name: 'incrementGames', type: 'bool' }], outputs: [] },
     { name: 'getOperatorStats', type: 'function', stateMutability: 'view', inputs: [{ name: 'operator', type: 'address' }], outputs: [{ type: 'tuple', components: [{ name: 'kills', type: 'uint256' }, { name: 'wins', type: 'uint256' }, { name: 'gamesPlayed', type: 'uint256' }, { name: 'lastCombatTime', type: 'uint256' }] }] },
+    { name: 'getOperatorCount', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+    { name: 'operators', type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'uint256' }], outputs: [{ type: 'address' }] },
 ] as const;
 
 /**
@@ -81,4 +83,24 @@ export function usePlayerBlockchainData(address?: string) {
             enabled: !!address,
         },
     });
+}
+
+/**
+ * Hook to fetch all operator stats for the leaderboard
+ */
+export function useAllOperatorStats() {
+    const { data: count } = useReadContract({
+        address: CONTRACT_ADDRESSES.LEADERBOARD as `0x${string}`,
+        abi: LEADERBOARD_ABI,
+        functionName: 'getOperatorCount',
+    });
+
+    // In a production app, we would use an indexer or multicall.
+    // Here we'll simplify and fetch the first few for the MVP leaderboard.
+    const operatorIndices = Array.from({ length: Number(count || 0) }, (_, i) => BigInt(i));
+
+    return {
+        count: Number(count || 0),
+        indices: operatorIndices
+    };
 }
