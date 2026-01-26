@@ -12,7 +12,7 @@ import { base } from 'wagmi/chains';
 import { config } from './wagmi-config';
 import { MiniKitProvider, useMiniKit } from '@coinbase/onchainkit/minikit';
 import { sdk } from '@farcaster/miniapp-sdk';
-import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
+import { FarcasterProvider } from './utils/farcaster-sdk.tsx';
 import { isInFarcaster, getFarcasterDisplayName, getFarcasterCustodyAddress, getFarcasterFid } from './utils/farcaster';
 import { TARGET_CHAIN } from './utils/blockchain';
 import { ConnectWallet, Wallet } from '@coinbase/onchainkit/wallet';
@@ -233,7 +233,9 @@ const App: React.FC = () => {
           }}
         >
           <MiniKitProvider>
-            <AppContent />
+            <FarcasterProvider>
+              <AppContent />
+            </FarcasterProvider>
           </MiniKitProvider>
         </OnchainKitProvider>
       </QueryClientProvider>

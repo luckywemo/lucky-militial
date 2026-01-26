@@ -66,7 +66,7 @@ export function useBlockchainStats() {
             functionName: 'updateStats',
             args: [address as `0x${string}`, BigInt(kills), BigInt(wins), true],
             account: address,
-            chain: base,
+            chain: TARGET_CHAIN,
         });
     };
 
