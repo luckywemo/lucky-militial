@@ -1,5 +1,6 @@
 
 import { createClient, Errors } from '@farcaster/quick-auth';
+import { redis, K } from '../utils/redis';
 
 // This is a serverless function compatible with Vercel/Next.js-like environments
 export default async function handler(req: Request) {
@@ -32,8 +33,24 @@ export default async function handler(req: Request) {
         });
 
         // payload.sub is the FID
+        const fid = payload.sub;
+
+        // NEW: Track authentication in Redis
+        try {
+            const key = `lm:auth_logs:${fid}`;
+            await redis.hset(key, {
+                lastLogin: Date.now(),
+                verified: true
+            });
+            await redis.expire(key, 60 * 60 * 24 * 7); // Expire after 7 days
+            await redis.incr('lm:total_auths');
+        } catch (redisError) {
+            console.warn('[Auth] Redis logging failed:', redisError);
+            // Don't fail the whole request if Redis is down
+        }
+
         return new Response(JSON.stringify({
-            fid: payload.sub,
+            fid,
             verified: true,
             timestamp: Date.now()
         }), {

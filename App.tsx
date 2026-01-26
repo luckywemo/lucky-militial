@@ -14,6 +14,7 @@ import { MiniKitProvider, useMiniKit } from '@coinbase/onchainkit/minikit';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { isInFarcaster, getFarcasterDisplayName, getFarcasterCustodyAddress, getFarcasterFid } from './utils/farcaster';
+import { TARGET_CHAIN } from './utils/blockchain';
 import { ConnectWallet, Wallet } from '@coinbase/onchainkit/wallet';
 import { Avatar, Name } from '@coinbase/onchainkit/identity';
 
@@ -219,7 +220,7 @@ const App: React.FC = () => {
       <QueryClientProvider client={queryClient}>
         <OnchainKitProvider
           apiKey={import.meta.env.VITE_ONCHAINKIT_API_KEY}
-          chain={base}
+          chain={TARGET_CHAIN}
           miniKit={{ enabled: true }}
           config={{
             appearance: {

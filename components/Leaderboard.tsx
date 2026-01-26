@@ -1,72 +1,33 @@
-import React, { useMemo } from 'react';
-import { useAccount, useReadContract, useReadContracts } from 'wagmi';
-import { CONTRACT_ADDRESSES } from '../utils/blockchain';
-
-const LEADERBOARD_ABI = [
-    { name: 'getOperatorStats', type: 'function', stateMutability: 'view', inputs: [{ name: 'operator', type: 'address' }], outputs: [{ name: '', type: 'tuple', components: [{ name: 'kills', type: 'uint256' }, { name: 'wins', type: 'uint256' }, { name: 'gamesPlayed', type: 'uint256' }, { name: 'lastCombatTime', type: 'uint256' }] }] },
-    { name: 'getOperatorCount', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-    { name: 'operators', type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'uint256' }], outputs: [{ type: 'address' }] },
-] as const;
+import React, { useMemo, useState, useEffect } from 'react';
+import { useAccount } from 'wagmi';
 
 export default function Leaderboard() {
     const { address } = useAccount();
+    const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    const { data: count, isLoading: countLoading } = useReadContract({
-        address: CONTRACT_ADDRESSES.LEADERBOARD as `0x${string}`,
-        abi: LEADERBOARD_ABI,
-        functionName: 'getOperatorCount',
-    });
+    useEffect(() => {
+        async function fetchLeaderboard() {
+            try {
+                setIsLoading(true);
+                // In production this would be /api/leaderboard
+                // Since we are using Vite, we might need to handle the path or use a full URL if testing locally
+                const response = await fetch('/api/leaderboard');
+                if (!response.ok) throw new Error('Failed to fetch leaderboard');
+                const data = await response.json();
+                setLeaderboardData(data);
+                setError(null);
+            } catch (err: any) {
+                console.error('[Leaderboard] Fetch error:', err);
+                setError(err.message);
+            } finally {
+                setIsLoading(false);
+            }
+        }
 
-    const operatorCount = Number(count || 0);
-    // Increase limit to 500 to capture the global player base in early stages
-    const indices = useMemo(() => Array.from({ length: Math.min(operatorCount, 500) }, (_, i) => BigInt(i)), [operatorCount]);
-
-    const { data: operatorAddresses, isLoading: operatorsLoading } = useReadContracts({
-        contracts: indices.map(index => ({
-            address: CONTRACT_ADDRESSES.LEADERBOARD as `0x${string}`,
-            abi: LEADERBOARD_ABI,
-            functionName: 'operators',
-            args: [index],
-        })),
-    });
-
-    const addresses = useMemo(() => {
-        return operatorAddresses?.map(r => r.result as `0x${string}`).filter(Boolean) || [];
-    }, [operatorAddresses]);
-
-    const { data: operatorStats, isLoading: statsLoading } = useReadContracts({
-        contracts: addresses.map(addr => ({
-            address: CONTRACT_ADDRESSES.LEADERBOARD as `0x${string}`,
-            abi: LEADERBOARD_ABI,
-            functionName: 'getOperatorStats',
-            args: [addr],
-        })),
-    });
-
-    const leaderboardData = useMemo(() => {
-        if (!operatorStats || !addresses.length) return [];
-
-        return addresses.map((addr, i) => {
-            const stats = operatorStats[i]?.result as any;
-            if (!stats) return null;
-
-            const kills = Number(stats.kills || 0);
-            const wins = Number(stats.wins || 0);
-            const score = (kills * 10) + (wins * 50);
-
-            return {
-                address: addr,
-                kills,
-                wins,
-                score,
-                lastCombat: Number(stats.lastCombatTime || 0)
-            };
-        })
-            .filter((item): item is NonNullable<typeof item> => item !== null)
-            .sort((a, b) => b.score - a.score);
-    }, [addresses, operatorStats]);
-
-    const isLoading = countLoading || operatorsLoading || statsLoading;
+        fetchLeaderboard();
+    }, []);
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4 duration-500">
