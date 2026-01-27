@@ -47,7 +47,8 @@ async function generateAccountAssociation() {
 
     // Sign the message
     const signature = await account.signMessage({ message });
-    const signatureBase64 = Buffer.from(signature.startsWith('0x') ? signature.slice(2) : signature, 'hex').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    // IMPORTANT: Farcaster expects the signature to be the base64url encoding of the HEX string (including 0x)
+    const signatureBase64 = Buffer.from(signature).toString('base64url');
 
     console.log('\n=== Account Association for farcaster.json ===\n');
     console.log(JSON.stringify({
