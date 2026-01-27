@@ -23,42 +23,31 @@ async function generateAccountAssociation() {
         process.exit(1);
     }
 
-    // Create the header
     const account = privateKeyToAccount(YOUR_CUSTODY_PRIVATE_KEY.startsWith('0x') ? YOUR_CUSTODY_PRIVATE_KEY : `0x${YOUR_CUSTODY_PRIVATE_KEY}`);
-    const header = {
-        fid: YOUR_FID,
-        type: 'custody',
-        key: account.address
-    };
 
-    // Create the payload
-    const payload = {
-        domain: DOMAIN
-    };
+    // VARIANT 1: Standard (Mixed-case address, header.payload)
+    const header = { fid: YOUR_FID, type: 'custody', key: account.address };
+    const payload = { domain: DOMAIN };
+    const hB64 = Buffer.from(JSON.stringify(header)).toString('base64url');
+    const pB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const msg = `${hB64}.${pB64}`;
+    const sig = await account.signMessage({ message: msg });
+    const sigB64 = Buffer.from(sig).toString('base64url');
 
-    // Encode to base64url
-    const toBase64Url = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    // VARIANT 2: Lowercase (Lowercase address, header.payload)
+    const headerLc = { fid: YOUR_FID, type: 'custody', key: account.address.toLowerCase() };
+    const hB64Lc = Buffer.from(JSON.stringify(headerLc)).toString('base64url');
+    const msgLc = `${hB64Lc}.${pB64}`;
+    const sigLc = await account.signMessage({ message: msgLc });
+    const sigB64Lc = Buffer.from(sigLc).toString('base64url');
 
-    const headerBase64 = toBase64Url(header);
-    const payloadBase64 = toBase64Url(payload);
+    console.log('\n=== OPTION A: Standard (Mixed-case) ===\n');
+    console.log(JSON.stringify({ accountAssociation: { header: hB64, payload: pB64, signature: sigB64 } }, null, 4));
 
-    // Create message to sign
-    const message = `${headerBase64}.${payloadBase64}`;
+    console.log('\n=== OPTION B: Lowercase Address ===\n');
+    console.log(JSON.stringify({ accountAssociation: { header: hB64Lc, payload: pB64, signature: sigB64Lc } }, null, 4));
 
-    // Sign the message
-    const signature = await account.signMessage({ message });
-    // IMPORTANT: Farcaster expects the signature to be the base64url encoding of the HEX string (including 0x)
-    const signatureBase64 = Buffer.from(signature).toString('base64url');
-
-    console.log('\n=== Account Association for farcaster.json ===\n');
-    console.log(JSON.stringify({
-        accountAssociation: {
-            header: headerBase64,
-            payload: payloadBase64,
-            signature: signatureBase64
-        }
-    }, null, 4));
-    console.log('\n=== Copy the above into your public/.well-known/farcaster.json ===\n');
+    console.log('\n=== Try Option A first. If it fails, try Option B. ===\n');
 }
 
 generateAccountAssociation().catch(console.error);
