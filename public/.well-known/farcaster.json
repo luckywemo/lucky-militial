@@ -7,11 +7,11 @@
     "miniapp": {
         "version": "1",
         "name": "Lucky Militia",
-        "iconUrl": "https://luckymilitia.xyz/logo.jpg",
-        "homeUrl": "https://luckymilitia.xyz",
-        "imageUrl": "https://luckymilitia.xyz/imageurl.jpg",
+        "iconUrl": "https://lucky-militial.vercel.app/logo.jpg",
+        "homeUrl": "https://lucky-militial.vercel.app/",
+        "imageUrl": "https://lucky-militial.vercel.app/imageurl.jpg",
         "buttonTitle": "Deploy",
-        "splashImageUrl": "https://luckymilitia.xyz/splash.jpg",
+        "splashImageUrl": "https://lucky-militial.vercel.app/splash.jpg",
         "splashBackgroundColor": "#050505"
     }
 }
