@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useAccount, useReadContract } from 'wagmi';
-import { CONTRACT_ADDRESSES } from '../utils/blockchain';
+import { CONTRACT_ADDRESS, LUCKY_MILITIA_ABI, LMT_TOKEN_ID } from '../utils/blockchain';
 import { getFarcasterUser, getFarcasterPfpUrl, isInFarcaster } from '../utils/farcaster';
 import { formatUnits } from 'viem';
 
@@ -31,11 +31,11 @@ const ProfileDashboard: React.FC<ProfileDashboardProps> = ({ playerName, activeA
 
     // Fetch LMT Balance
     const { data: lmtBalance } = useReadContract({
-        address: CONTRACT_ADDRESSES.REWARDS as `0x${string}`,
-        abi: [{ name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] }] as const,
+        address: CONTRACT_ADDRESS,
+        abi: LUCKY_MILITIA_ABI,
         functionName: 'balanceOf',
-        args: address ? [address as `0x${string}`] : undefined,
-        query: { enabled: !!address && CONTRACT_ADDRESSES.REWARDS !== '0x0000000000000000000000000000000000000000' },
+        args: address ? [address as `0x${string}`, LMT_TOKEN_ID] : undefined,
+        query: { enabled: !!address },
     });
 
     // Fetch Stats (Mocked or from Leaderboard contract if deployed)

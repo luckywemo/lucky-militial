@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Peer, { DataConnection } from 'peerjs';
 import { GameMode, CharacterClass, MissionConfig, MPMatchMode, MPMap, MPConfig } from '../App';
 import { useReadContract, useAccount } from 'wagmi';
-import { CONTRACT_ADDRESSES, useBlockchainStats } from '../utils/blockchain';
+import { CONTRACT_ADDRESS, LUCKY_MILITIA_ABI, useBlockchainStats, LMT_TOKEN_ID } from '../utils/blockchain';
 import Arsenal from './Arsenal';
 import Leaderboard from './Leaderboard';
 import { parseEther } from 'viem';
@@ -74,10 +74,10 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
 
   // Token gating check for Bio-Forge (Labs)
   const { data: lmtBalance } = useReadContract({
-    address: CONTRACT_ADDRESSES.REWARDS as `0x${string}`,
-    abi: [{ name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] }] as const,
+    address: CONTRACT_ADDRESS,
+    abi: LUCKY_MILITIA_ABI,
     functionName: 'balanceOf',
-    args: userAddress ? [userAddress as `0x${string}`] : undefined,
+    args: userAddress ? [userAddress as `0x${string}`, LMT_TOKEN_ID] : undefined,
     query: { enabled: !!userAddress },
   });
 

@@ -8,7 +8,7 @@ export const CONTRACT_ADDRESS = (import.meta.env.VITE_HUB_ADDRESS || import.meta
 export const TARGET_CHAIN = import.meta.env.VITE_NETWORK === 'base' ? base : baseSepolia;
 
 // Unified ABI for LuckyMilitia (ERC1155 + Game Logic)
-const LUCKY_MILITIA_ABI = [
+export const LUCKY_MILITIA_ABI = [
     // Game Logic
     { name: 'recordKill', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'player', type: 'address' }], outputs: [] },
     { name: 'recordWin', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'player', type: 'address' }], outputs: [] },

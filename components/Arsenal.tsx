@@ -1,8 +1,7 @@
 
 import React from 'react';
 import { useReadContract, useAccount } from 'wagmi';
-import { CONTRACT_ADDRESSES } from '../utils/blockchain';
-import { SKINS_ABI } from '../utils/transaction-calls';
+import { CONTRACT_ADDRESS, LUCKY_MILITIA_ABI } from '../utils/blockchain';
 
 type WeaponType = 'pistol' | 'smg' | 'shotgun' | 'railgun';
 type Rarity = 'common' | 'rare' | 'legendary';
@@ -10,13 +9,22 @@ type Rarity = 'common' | 'rare' | 'legendary';
 export default function Arsenal() {
     const { address } = useAccount();
 
-    const { data: tokenIds, isLoading: listLoading } = useReadContract({
-        address: CONTRACT_ADDRESSES.SKINS as `0x${string}`,
-        abi: SKINS_ABI,
-        functionName: 'tokensOfOwner',
-        args: address ? [address as `0x${string}`] : undefined,
+    // Check balances for the first 10 possible skin IDs (MVP workaround since no tokensOfOwner)
+    const possibleIds = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n];
+
+    const { data: balances, isLoading: listLoading } = useReadContract({
+        address: CONTRACT_ADDRESS,
+        abi: LUCKY_MILITIA_ABI,
+        functionName: 'balanceOfBatch',
+        args: address && [Array(10).fill(address as `0x${string}`), possibleIds],
         query: { enabled: !!address },
     });
+
+    // Filter to IDs where balance > 0
+    const tokenIds = React.useMemo(() => {
+        if (!balances) return [];
+        return possibleIds.filter((_, i) => balances[i] > 0n);
+    }, [balances]);
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -61,8 +69,8 @@ export default function Arsenal() {
 
 function SkinItem({ tokenId }: { tokenId: bigint }) {
     const { data: metadata, isLoading } = useReadContract({
-        address: CONTRACT_ADDRESSES.SKINS as `0x${string}`,
-        abi: SKINS_ABI,
+        address: CONTRACT_ADDRESS,
+        abi: LUCKY_MILITIA_ABI,
         functionName: 'getSkinMetadata',
         args: [tokenId],
     });
