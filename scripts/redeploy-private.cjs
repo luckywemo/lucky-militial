@@ -49,29 +49,38 @@ async function main() {
     console.log(`Using your deployer address: ${account.address}`);
     console.log(`Network: ${network.name}`);
 
-    const rewardsAddr = await deployContract('LuckyMilitiaRewards', './artifacts/contracts/LuckyMilitiaRewards.sol/LuckyMilitiaRewards.json');
-    const leaderboardAddr = await deployContract('LuckyMilitiaLeaderboard', './artifacts/contracts/LuckyMilitiaLeaderboard.sol/LuckyMilitiaLeaderboard.json');
-    const skinsAddr = await deployContract('LuckyMilitiaSkins', './artifacts/contracts/LuckyMilitiaSkins.sol/LuckyMilitiaSkins.json');
+    // Deploy only the Unified Contract
+    const hubAddr = await deployContract('LuckyMilitia', './artifacts/contracts/LuckyMilitia.sol/LuckyMilitia.json');
 
-    if (!rewardsAddr || !leaderboardAddr || !skinsAddr) {
+    if (!hubAddr) {
         console.error('Deployment failed.');
         return;
     }
 
-    console.log('\nUpdating .env file with new YOUR contract addresses...');
+    console.log('\nUpdating .env file with new Unified HUB address...');
     let envContent = readFileSync('.env', 'utf8');
-    envContent = envContent.replace(/VITE_REWARDS_ADDRESS=.*/, `VITE_REWARDS_ADDRESS=${rewardsAddr}`);
-    envContent = envContent.replace(/VITE_LEADERBOARD_ADDRESS=.*/, `VITE_LEADERBOARD_ADDRESS=${leaderboardAddr}`);
-    envContent = envContent.replace(/VITE_SKINS_ADDRESS=.*/, `VITE_SKINS_ADDRESS=${skinsAddr}`);
+
+    // Remove old keys if they exist, or just ensure we don't rely on them
+    // We'll standardise on VITE_HUB_ADDRESS
+    const newEntry = `VITE_HUB_ADDRESS=${hubAddr}`;
+
+    if (envContent.includes('VITE_HUB_ADDRESS=')) {
+        envContent = envContent.replace(/VITE_HUB_ADDRESS=.*/, newEntry);
+    } else {
+        envContent += `\n${newEntry}`;
+    }
+
+    // Comment out or remove old keys to avoid confusion
+    // (Optional, but good for cleanup)
+    envContent = envContent.replace(/VITE_REWARDS_ADDRESS=.*/g, '# VITE_REWARDS_ADDRESS=DEPRECATED');
+    envContent = envContent.replace(/VITE_LEADERBOARD_ADDRESS=.*/g, '# VITE_LEADERBOARD_ADDRESS=DEPRECATED');
+    envContent = envContent.replace(/VITE_SKINS_ADDRESS=.*/g, '# VITE_SKINS_ADDRESS=DEPRECATED');
+
     writeFileSync('.env', envContent);
     console.log('.env updated successfully!');
 
     console.log('\n--- REDEPLOYMENT COMPLETE ---');
-    console.log('You are now the Creator and Owner of:');
-    console.log(`Rewards: ${rewardsAddr}`);
-    console.log(`Leaderboard: ${leaderboardAddr}`);
-    console.log(`Skins: ${skinsAddr}`);
-    console.log('\nTransactions will now show your address as the source.');
+    console.log(`Lucky Militia Hub: ${hubAddr}`);
 }
 
 main().catch(console.error);

@@ -1,8 +1,8 @@
 import { ContractFunctionParameters } from 'viem';
-import { CONTRACT_ADDRESSES } from './blockchain';
+import { CONTRACT_ADDRESS, LMT_TOKEN_ID } from './blockchain';
 
 // Full ABIs for transaction calls
-export const REWARDS_ABI = [
+export const LUCKY_MILITIA_ABI = [
     {
         type: 'function',
         name: 'recordKill',
@@ -17,9 +17,6 @@ export const REWARDS_ABI = [
         inputs: [{ name: 'player', type: 'address' }],
         outputs: [],
     },
-] as const;
-
-export const LEADERBOARD_ABI = [
     {
         type: 'function',
         name: 'updateStats',
@@ -32,42 +29,24 @@ export const LEADERBOARD_ABI = [
         ],
         outputs: [],
     },
-] as const;
-
-export const SKINS_ABI = [
     {
         type: 'function',
         name: 'mintSkin',
-        stateMutability: 'payable',
+        stateMutability: 'nonpayable',
         inputs: [
+            { name: 'to', type: 'address' },
             { name: 'weaponType', type: 'string' },
             { name: 'rarity', type: 'string' },
+            { name: 'powerBoost', type: 'uint256' },
         ],
-        outputs: [{ name: 'tokenId', type: 'uint256' }],
+        outputs: [{ name: '', type: 'uint256' }],
     },
     {
         type: 'function',
-        name: 'tokensOfOwner',
+        name: 'balanceOf',
         stateMutability: 'view',
-        inputs: [{ name: 'owner', type: 'address' }],
-        outputs: [{ name: '', type: 'uint256[]' }],
-    },
-    {
-        type: 'function',
-        name: 'getSkinMetadata',
-        stateMutability: 'view',
-        inputs: [{ name: 'tokenId', type: 'uint256' }],
-        outputs: [
-            {
-                name: '',
-                type: 'tuple',
-                components: [
-                    { name: 'weaponType', type: 'string' },
-                    { name: 'rarity', type: 'string' },
-                    { name: 'powerBoost', type: 'uint256' },
-                ],
-            },
-        ],
+        inputs: [{ name: 'account', type: 'address' }, { name: 'id', type: 'uint256' }],
+        outputs: [{ name: '', type: 'uint256' }],
     },
 ] as const;
 
@@ -89,8 +68,8 @@ export interface TransactionCall {
  */
 export function createRecordKillCall(playerAddress: `0x${string}`): TransactionCall {
     return {
-        address: CONTRACT_ADDRESSES.REWARDS as `0x${string}`,
-        abi: REWARDS_ABI,
+        address: CONTRACT_ADDRESS,
+        abi: LUCKY_MILITIA_ABI,
         functionName: 'recordKill',
         args: [playerAddress],
     };
@@ -101,8 +80,8 @@ export function createRecordKillCall(playerAddress: `0x${string}`): TransactionC
  */
 export function createRecordWinCall(playerAddress: `0x${string}`): TransactionCall {
     return {
-        address: CONTRACT_ADDRESSES.REWARDS as `0x${string}`,
-        abi: REWARDS_ABI,
+        address: CONTRACT_ADDRESS,
+        abi: LUCKY_MILITIA_ABI,
         functionName: 'recordWin',
         args: [playerAddress],
     };
@@ -118,8 +97,8 @@ export function createSyncStatsCall(
     incrementGames: boolean = true
 ): TransactionCall {
     return {
-        address: CONTRACT_ADDRESSES.LEADERBOARD as `0x${string}`,
-        abi: LEADERBOARD_ABI,
+        address: CONTRACT_ADDRESS,
+        abi: LUCKY_MILITIA_ABI,
         functionName: 'updateStats',
         args: [operatorAddress, BigInt(kills), BigInt(wins), incrementGames],
     };
@@ -129,16 +108,18 @@ export function createSyncStatsCall(
  * Create a transaction call to mint a weapon skin
  */
 export function createMintSkinCall(
+    to: `0x${string}`,
     weaponType: 'pistol' | 'smg' | 'shotgun' | 'railgun',
     rarity: 'common' | 'rare' | 'legendary'
 ): TransactionCall {
+    // Determine power boost based on rarity (example logic)
+    const powerBoost = rarity === 'legendary' ? 50 : rarity === 'rare' ? 25 : 10;
+
     return {
-        address: CONTRACT_ADDRESSES.SKINS as `0x${string}`,
-        abi: SKINS_ABI,
+        address: CONTRACT_ADDRESS,
+        abi: LUCKY_MILITIA_ABI,
         functionName: 'mintSkin',
-        args: [weaponType, rarity],
-        // Add value if minting requires payment
-        // value: parseEther('0.001'),
+        args: [to, weaponType, rarity, BigInt(powerBoost)],
     };
 }
 
@@ -158,6 +139,15 @@ export function createBatchGameResultCalls(
     // Add record win call if player won
     if (didWin) {
         calls.push(createRecordWinCall(playerAddress));
+    }
+
+    // Note: We might want explicit kill recording too if the contract logic requires it separate from updateStats
+    if (kills > 0) {
+        // Optimally, recordKill handles bulk or we iterate. 
+        // Current contract is per-kill. If we kill 5 ppl, do we call it 5 times? 
+        // For efficiency, updateStats updates the count. recordKill mints rewards.
+        // Let's assume recordKill is for per-kill reward minting event.
+        // For batching, this might be gas-heavy. 
     }
 
     return calls;

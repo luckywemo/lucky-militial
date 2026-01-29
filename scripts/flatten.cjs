@@ -76,9 +76,7 @@ function flatten(entryFile, outputFile) {
 }
 
 const contracts = [
-    'contracts/LuckyMilitiaRewards.sol',
-    'contracts/LuckyMilitiaLeaderboard.sol',
-    'contracts/LuckyMilitiaSkins.sol'
+    'contracts/LuckyMilitia.sol'
 ];
 
 contracts.forEach(contract => {

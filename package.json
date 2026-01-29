@@ -32,6 +32,7 @@
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "buffer": "^6.0.3",
+    "hardhat": "^3.1.5",
     "peer": "^1.0.2",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
