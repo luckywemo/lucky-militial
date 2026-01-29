@@ -10,7 +10,8 @@ export const config = createConfig({
         farcasterMiniApp(),
         coinbaseWallet({
             appName: 'Lucky Militia',
-            preference: 'all' // Shows both Coinbase Wallet and Smart Wallet options
+            preference: 'smartWalletOnly', // Forces embedded Smart Wallet to keep user in-frame
+            version: '4',
         }),
         /*
         walletConnect({
