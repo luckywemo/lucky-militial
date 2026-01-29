@@ -4,6 +4,7 @@ import { useAccount, useReadContract } from 'wagmi';
 import { CONTRACT_ADDRESS, LUCKY_MILITIA_ABI, LMT_TOKEN_ID } from '../utils/blockchain';
 import { getFarcasterUser, getFarcasterPfpUrl, isInFarcaster } from '../utils/farcaster';
 import { formatUnits } from 'viem';
+import { calculateLevelData, getRankColor } from '../utils/leveling';
 
 interface ProfileDashboardProps {
     playerName: string;
@@ -39,11 +40,21 @@ const ProfileDashboard: React.FC<ProfileDashboardProps> = ({ playerName, activeA
     });
 
     // Fetch Stats (Mocked or from Leaderboard contract if deployed)
+    const { data: operatorStats } = useReadContract({
+        address: CONTRACT_ADDRESS,
+        abi: LUCKY_MILITIA_ABI,
+        functionName: 'getOperatorStats',
+        args: address ? [address as `0x${string}`] : undefined,
+        query: { enabled: !!address },
+    });
+
     const stats = {
-        kills: 0,
-        wins: 0,
-        gamesPlayed: 0
+        kills: operatorStats ? Number(operatorStats.kills) : 0,
+        wins: operatorStats ? Number(operatorStats.wins) : 0,
+        gamesPlayed: operatorStats ? Number(operatorStats.gamesPlayed) : 0
     };
+
+    const levelData = calculateLevelData(stats);
 
     const formattedBalance = lmtBalance ? parseFloat(formatUnits(lmtBalance, 18)).toLocaleString() : '0';
 
@@ -60,7 +71,7 @@ const ProfileDashboard: React.FC<ProfileDashboardProps> = ({ playerName, activeA
                             className="w-full h-full object-cover"
                         />
                     </div>
-                    <div className="absolute -bottom-2 -right-2 bg-orange-600 px-2 py-0.5 rounded text-[8px] font-black font-stencil tracking-widest text-white shadow-xl">LVL_1</div>
+                    <div className="absolute -bottom-2 -right-2 bg-orange-600 px-2 py-0.5 rounded text-[8px] font-black font-stencil tracking-widest text-white shadow-xl">LVL_{levelData.level}</div>
                 </div>
 
                 <div className="text-center sm:text-left flex-1 min-w-0">
@@ -72,6 +83,19 @@ const ProfileDashboard: React.FC<ProfileDashboardProps> = ({ playerName, activeA
                             </span>
                         )}
                     </div>
+
+                    <div className="w-full max-w-sm mt-4 sm:mt-0">
+                        <div className="flex justify-between text-[8px] font-black uppercase text-stone-500 mb-1">
+                            <span>XP_PROGRESS</span>
+                            <span>{Math.floor(levelData.progressPercent)}%</span>
+                        </div>
+                        <div className="h-1.5 bg-stone-950 rounded-full overflow-hidden border border-stone-800">
+                            <div
+                                className="h-full bg-orange-600 shadow-[0_0_8px_#f97316]"
+                                style={{ width: `${levelData.progressPercent}%` }}
+                            ></div>
+                        </div>
+                    </div>
                     <p className="text-stone-500 text-xs lg:text-sm font-bold truncate opacity-80 mb-4">{address || 'OPERATOR_NOT_LINKED'}</p>
 
                     <div className="flex flex-wrap justify-center sm:justify-start gap-2 lg:gap-4">
@@ -79,7 +103,7 @@ const ProfileDashboard: React.FC<ProfileDashboardProps> = ({ playerName, activeA
                             CLASS: <span className="text-orange-500">STRIKER</span>
                         </div>
                         <div className="px-3 py-1 bg-black/40 border border-stone-800 rounded text-[10px] text-stone-400 font-black uppercase">
-                            RANK: <span className="text-cyan-400">RECRUIT</span>
+                            RANK: <span className={`${getRankColor(levelData.level)}`}>{levelData.rank}</span>
                         </div>
                     </div>
                 </div>

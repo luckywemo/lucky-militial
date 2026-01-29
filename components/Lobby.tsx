@@ -4,6 +4,7 @@ import Peer, { DataConnection } from 'peerjs';
 import { GameMode, CharacterClass, MissionConfig, MPMatchMode, MPMap, MPConfig } from '../App';
 import { useReadContract, useAccount } from 'wagmi';
 import { CONTRACT_ADDRESS, LUCKY_MILITIA_ABI, useBlockchainStats, LMT_TOKEN_ID } from '../utils/blockchain';
+import { calculateLevelData, getRankColor } from '../utils/leveling';
 import Arsenal from './Arsenal';
 import Leaderboard from './Leaderboard';
 import { parseEther } from 'viem';
@@ -82,6 +83,23 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
   });
 
   const hasLabAccess = lmtBalance ? lmtBalance >= parseEther('100') : false;
+
+  // Fetch Operator Level/Rank
+  const { data: operatorStats } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: LUCKY_MILITIA_ABI,
+    functionName: 'getOperatorStats',
+    args: userAddress ? [userAddress as `0x${string}`] : undefined,
+    query: { enabled: !!userAddress },
+  });
+
+  const levelStats = {
+    kills: operatorStats ? Number(operatorStats.kills) : 0,
+    wins: operatorStats ? Number(operatorStats.wins) : 0,
+    gamesPlayed: operatorStats ? Number(operatorStats.gamesPlayed) : 0
+  };
+
+  const levelData = calculateLevelData(levelStats);
 
   const [selectedLevelId, setSelectedLevelId] = useState(unlockedLevel);
   const [roomCode, setRoomCode] = useState('');
@@ -175,7 +193,12 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
             <h1 className="font-stencil text-lg sm:text-3xl lg:text-5xl font-black text-white leading-none uppercase mb-1 drop-shadow-[0_2px_15px_rgba(249,115,22,0.3)]">
               LUCKY<br className="hidden sm:block" /><span className="text-orange-500"> MILITIA</span>
             </h1>
-            <div className="text-[7px] lg:text-[10px] font-black text-stone-600 tracking-[0.2em] lg:tracking-[0.5em] uppercase">Command_Nexus</div>
+            <div className="flex justify-between items-center w-full px-1">
+              <div className="text-[7px] lg:text-[10px] font-black text-stone-600 tracking-[0.2em] lg:tracking-[0.5em] uppercase">Command_Nexus</div>
+              <div className={`text-[8px] lg:text-[12px] font-black ${getRankColor(levelData.level)} uppercase tracking-widest`}>
+                {levelData.rank} // LVL {levelData.level}
+              </div>
+            </div>
           </div>
 
           <div className="tactical-panel flex-1 p-2 lg:p-6 bg-stone-900/60 rounded-xl border border-stone-800 flex flex-col gap-2">
