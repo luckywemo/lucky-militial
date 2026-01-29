@@ -324,6 +324,16 @@ export class MainScene extends Phaser.Scene {
       this.handleConnection(conn);
     });
 
+    // Helper to log low-level ICE state
+    if (conn.peerConnection) {
+      conn.peerConnection.oniceconnectionstatechange = () => {
+        console.log(`[ICE STATE] ${conn.peerConnection.iceConnectionState}`);
+        if (conn.peerConnection.iceConnectionState === 'failed' || conn.peerConnection.iceConnectionState === 'disconnected') {
+          console.error('[MainScene] ICE Connection Failed! Potential NAT/Firewall issue.');
+        }
+      };
+    }
+
     conn.on('error', (err) => {
       clearTimeout(connectionTimeout);
       console.error('[MainScene] Connection error:', err);

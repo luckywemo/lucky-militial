@@ -8,24 +8,40 @@ import Peer from 'peerjs';
 
 // We use 0.peerjs.com as the primary signaling server.
 // It is the most reliable among free public options for cross-device discovery.
+// Standardized PeerJS Config
+// NOTE: For production, you MUST use a paid TURN server (e.g., Twilio, Xirsys, or a private Metered account).
+// The credentials below are for the public OpenRelay project and may be rate-limited.
 export const PEER_CONFIG = {
     host: '0.peerjs.com',
     port: 443,
     path: '/',
     secure: true,
-    debug: 1, // Minimize noise but keep errors
+    debug: 2, // 2 = Warnings & Errors
     config: {
         iceServers: [
+            // Standard Google STUN (Reliable for NAT punching)
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun3.l.google.com:19302' },
             { urls: 'stun:stun4.l.google.com:19302' },
-            { urls: 'stun:stun.services.mozilla.com' },
-            // Better free TURN servers (often more reliable than openrelay)
-            { urls: 'turn:relay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:relay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:relay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+
+            // OpenRelay Project (Free TURN - Best Effort)
+            {
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            }
         ],
         iceTransportPolicy: 'all' as RTCIceTransportPolicy,
         iceCandidatePoolSize: 10,
