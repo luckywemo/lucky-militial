@@ -259,7 +259,7 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
 
   const gameRef = useRef<Phaser.Game | null>(null);
   const [stats, setStats] = useState<any>({
-    hp: 100, maxHp: 100, shield: 100, ammo: 0, maxAmmo: 0, weaponKey: 'pistol', weaponName: 'SIDEARM', isInfinite: true, abilityCooldown: 0, kills: 0, targetKills: 0, points: 0, teamScores: { alpha: 0, bravo: 0 }, mode: 'MISSION', isOver: false, playerPos: { x: 1000, y: 1000, rotation: 0 }, entities: [], lives: 3, maxLives: 3
+    hp: 100, maxHp: 100, shield: 100, ammo: 0, maxAmmo: 0, weaponKey: 'pistol', weaponName: 'SIDEARM', isInfinite: true, abilityCooldown: 0, kills: 0, targetKills: 0, targetValue: 0, points: 0, teamScores: { alpha: 0, bravo: 0 }, mode: 'MISSION', isOver: false, playerPos: { x: 1000, y: 1000, rotation: 0 }, entities: [], lives: 3, maxLives: 3, survivalTimer: 0, collectedItems: 0
   });
   const [victoryData, setVictoryData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -518,7 +518,19 @@ const GameContainer: React.FC<Props> = ({ playerName, characterClass, avatar, ro
                   </div>
                   <div className="text-right border-l border-white/10 pl-4">
                     <div className="text-[6px] lg:text-[10px] text-stone-500 font-black">OBJECTIVE</div>
-                    <div className="text-[10px] lg:text-lg font-black text-white">{stats.kills} / {stats.targetKills}</div>
+                    {stats.mode === 'SURVIVAL' ? (
+                      <div className={`text-[10px] lg:text-lg font-black ${stats.survivalTimer <= 10 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+                        SURVIVE: {stats.survivalTimer}s
+                      </div>
+                    ) : stats.mode === 'EXTRACTION' ? (
+                      <div className="text-[10px] lg:text-lg font-black text-white">
+                        INTEL: {stats.collectedItems} / {stats.targetValue}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] lg:text-lg font-black text-white">
+                        KILLS: {stats.kills} / {stats.targetValue}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

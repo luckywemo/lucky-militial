@@ -106,6 +106,11 @@ export class MainScene extends Phaser.Scene {
   private abilityEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private bloodEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
 
+  // Operation Blackout: New Mission State
+  private collectedItems = 0;
+  private survivalTimer = 0;
+  private dataDrives!: Phaser.Physics.Arcade.Group;
+
   constructor() {
     super('MainScene');
   }
@@ -136,6 +141,14 @@ export class MainScene extends Phaser.Scene {
     this.lives = this.mission ? 3 : 999;
     this.maxLives = this.mission ? 3 : 999;
     this.isMissionOver = false;
+
+    // Mission Type Init
+    this.collectedItems = 0;
+    if (this.mission && this.mission.type === 'SURVIVAL') {
+      this.survivalTimer = this.mission.targetValue; // targetValue is seconds
+    } else {
+      this.survivalTimer = 0;
+    }
   }
 
   preload() {
@@ -193,6 +206,7 @@ export class MainScene extends Phaser.Scene {
     this.luckBoxes = this.physics.add.group();
     this.weaponBoxes = this.physics.add.group();
     this.weaponItems = this.physics.add.group();
+    this.dataDrives = this.physics.add.group();
     this.unitAuras = this.add.graphics().setDepth(1);
 
     if (this.mpConfig?.mode === 'HARDPOINT') {
@@ -226,6 +240,10 @@ export class MainScene extends Phaser.Scene {
     } else if (this.mission) {
       const botCount = Math.floor(8 * this.difficultyModifier);
       for (let i = 0; i < botCount; i++) this.spawnAIBot('bravo');
+
+      if (this.mission.type === 'EXTRACTION') {
+        this.spawnExtractionItems();
+      }
     }
 
     if (!this.roomId || this.isHost) {
@@ -439,6 +457,9 @@ export class MainScene extends Phaser.Scene {
     g.fillStyle(0xffffff).fillCircle(3, 3, 3).generateTexture('bullet', 8, 8).clear();
     g.fillStyle(0x0a0a0a).fillRoundedRect(0, 0, 48, 48, 6).generateTexture('luck_box', 48, 48).clear();
     g.fillStyle(0x00ffff, 0.8).fillRoundedRect(0, 0, 48, 48, 6).lineStyle(4, 0xffffff).strokeRoundedRect(4, 4, 40, 40, 4).generateTexture('weapon_box', 48, 48).clear();
+
+    // Data Drive Texture
+    g.fillStyle(0x8b5cf6).fillRoundedRect(0, 0, 32, 48, 4).lineStyle(2, 0xffffff).strokeRoundedRect(4, 4, 24, 16, 2).generateTexture('data_drive', 32, 48).clear();
   }
 
   private setupEmitters() {
@@ -487,6 +508,7 @@ export class MainScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.luckBoxes, (p, box: any) => this.collectLuckBox(box));
     this.physics.add.overlap(this.player, this.weaponBoxes, (p, box: any) => this.activateWeaponBox(box));
     this.physics.add.overlap(this.player, this.weaponItems, (p, item: any) => this.collectWeaponItem(item));
+    this.physics.add.overlap(this.player, this.dataDrives, (p, item: any) => this.collectDataDrive(item));
   }
 
   update(time: number, delta: number) {
@@ -498,6 +520,13 @@ export class MainScene extends Phaser.Scene {
       this.resolveUnitOverlaps();
 
       if (this.abilityCooldown > 0) this.abilityCooldown -= delta;
+
+      // Update Survival Timer
+      if (this.mission && this.mission.type === 'SURVIVAL') {
+        this.survivalTimer -= delta / 1000;
+        if (this.survivalTimer < 0) this.survivalTimer = 0;
+      }
+
       if (this.safeZoneTimer > 0) this.safeZoneTimer -= delta;
       if (this.invulnerabilityTimer > 0) {
         this.invulnerabilityTimer -= delta;
@@ -505,6 +534,17 @@ export class MainScene extends Phaser.Scene {
       } else {
         this.player.setAlpha(1.0);
       }
+
+      // Sync HUD Data
+      const hudStats = {
+        ...this.getGameStats(), // existing stats
+        survivalTimer: Math.ceil(this.survivalTimer),
+        collectedItems: this.collectedItems,
+        mode: this.mission ? this.mission.type : 'MULTIPLAYER'
+      };
+      // We'll update the global object later or via a specific method, 
+      // primarily we rely on the object reference or interval in GameContainer.
+      // For now, let's just make sure we update the specific logic.
 
       if (this.roomId && time % 50 < 10) {
         this.connections.forEach(c => c.send({ type: 'sync', x: this.player.x, y: this.player.y, angle: this.player.rotation, name: this.playerName, team: this.playerTeam }));
@@ -538,7 +578,17 @@ export class MainScene extends Phaser.Scene {
 
   private checkWinCondition() {
     if (this.mission && !this.isMissionOver) {
-      if (this.kills >= this.mission.targetKills) {
+      let victory = false;
+
+      if (this.mission.type === 'ELIMINATION') {
+        if (this.kills >= this.mission.targetValue) victory = true;
+      } else if (this.mission.type === 'SURVIVAL') {
+        if (this.survivalTimer <= 0) victory = true;
+      } else if (this.mission.type === 'EXTRACTION') {
+        if (this.collectedItems >= this.mission.targetValue) victory = true;
+      }
+
+      if (victory) {
         this.isMissionOver = true;
         this.player.body.stop();
         this.player.body.enable = false;
@@ -579,6 +629,47 @@ export class MainScene extends Phaser.Scene {
       }
     }
   }
+
+  private getGameStats() {
+    // Helper to return current state for HUD
+    return {
+      hp: this.health,
+      maxHp: this.maxHealth,
+      shield: this.shield,
+      ammo: this.ammo,
+      maxAmmo: this.currentWeapon.maxAmmo,
+      weaponKey: this.currentWeapon.key,
+      weaponName: this.currentWeapon.name,
+      isInfinite: this.currentWeapon.isInfinite,
+      abilityCooldown: this.abilityCooldown,
+      kills: this.kills,
+      targetValue: this.mission ? this.mission.targetValue : 0,
+      points: this.points,
+      teamScores: this.teamScores,
+      mode: this.mission ? this.mission.type : 'MULTIPLAYER',
+      isOver: this.isMissionOver,
+      playerPos: { x: this.player.x, y: this.player.y, rotation: this.player.rotation },
+      entities: this.getMinimapEntities(),
+      lives: this.lives,
+      maxLives: this.maxLives,
+      survivalTimer: Math.ceil(this.survivalTimer),
+      collectedItems: this.collectedItems
+    };
+  }
+
+  public updateGameStatsObj() {
+    (window as any).gameStats = this.getGameStats();
+  }
+
+  private getMinimapEntities() {
+    const drives = this.dataDrives ? this.dataDrives.getChildren().filter((d: any) => d.active).map((d: any) => ({ x: d.x, y: d.y, team: 'neutral', type: 'objective' })) : [];
+    return [
+      ...this.aiBots.getChildren().map((b: any) => ({ x: b.x, y: b.y, team: b.getData('team') })),
+      ...this.otherPlayersGroup.getChildren().map((p: any) => ({ x: p.x, y: p.y, team: p.getData('team') })),
+      ...drives
+    ];
+  }
+
 
   private handleInput() {
     const { moveX, moveY, aimAngle, isAbility } = this.virtualInput;
@@ -1086,6 +1177,33 @@ export class MainScene extends Phaser.Scene {
     box.destroy();
   }
 
+  private spawnExtractionItems() {
+    if (!this.mission) return;
+    const count = this.mission.targetValue;
+    for (let i = 0; i < count; i++) {
+      const x = Phaser.Math.Between(100, 1900);
+      const y = Phaser.Math.Between(100, 1900);
+      const drive = this.dataDrives.create(x, y, 'data_drive');
+      drive.setDepth(5).setImmovable(true);
+      this.tweens.add({
+        targets: drive,
+        y: y - 10,
+        duration: 1500,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    }
+  }
+
+  private collectDataDrive(item: any) {
+    item.destroy();
+    this.collectedItems++;
+    this.points += 500;
+    this.playSound('sfx_powerup', 0.6);
+    this.showFloatingText(this.player.x, this.player.y - 80, "INTEL SECURED", "#8b5cf6");
+  }
+
   private collectWeaponItem(item: any) {
     this.swapWeapon(item.getData('weaponKey')); this.points += 50; this.playSound('sfx_powerup', 0.8);
     this.showFloatingText(item.x, item.y, "HARDWARE_SYNCHRONIZED +50", "#00ffff");
@@ -1130,17 +1248,6 @@ export class MainScene extends Phaser.Scene {
   }
 
   private updateHUD() {
-    (window as any).gameStats = {
-      hp: this.health, maxHp: this.maxHealth, shield: this.shield, maxShield: this.maxShield, ammo: this.ammo, maxAmmo: this.currentWeapon.maxAmmo,
-      weaponKey: this.currentWeapon.key, weaponName: this.currentWeapon.name, isInfinite: this.currentWeapon.isInfinite,
-      abilityCooldown: this.abilityCooldown, kills: this.kills, targetKills: this.mission?.targetKills || 0,
-      points: this.points, lives: this.lives, maxLives: this.maxLives, teamScores: this.teamScores,
-      mode: this.mpConfig?.mode || 'MISSION', isOver: this.isMissionOver,
-      playerPos: { x: this.player.x, y: this.player.y, rotation: this.player.rotation },
-      entities: [
-        ...this.aiBots.getChildren().map((b: any) => ({ x: b.x, y: b.y, team: b.getData('team'), type: 'bot' })),
-        ...Array.from(this.otherPlayers.values()).map((p: any) => ({ x: p.x, y: p.y, team: p.getData('team'), type: 'player' }))
-      ]
-    };
+    this.updateGameStatsObj();
   }
 }

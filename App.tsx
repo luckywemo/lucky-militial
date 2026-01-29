@@ -33,20 +33,36 @@ export interface MPConfig {
   mapSeed: string;
 }
 
+export type MissionType = 'ELIMINATION' | 'SURVIVAL' | 'EXTRACTION';
+
 export interface MissionConfig {
   id: number;
   name: string;
   objective: string;
-  targetKills: number;
+  type: MissionType;
+  targetValue: number; // Kills / Seconds / Items
   difficulty: number;
   coords: { x: number; y: number };
 }
 
 const MISSIONS: MissionConfig[] = [
-  { id: 1, name: "ALPHA_PROTOCOL", objective: "Clear local sector of rogue drones.", targetKills: 5, difficulty: 1, coords: { x: 20, y: 30 } },
-  { id: 2, name: "NEON_SCARE", objective: "Eliminate reinforced security units.", targetKills: 10, difficulty: 2, coords: { x: 45, y: 60 } },
-  { id: 3, name: "VOID_STRIKE", objective: "Tactical wipe of high-threat squads.", targetKills: 20, difficulty: 3, coords: { x: 75, y: 40 } },
-  { id: 4, name: "OMNI_CORE", objective: "Full system purge. Zero survivors.", targetKills: 35, difficulty: 5, coords: { x: 90, y: 85 } },
+  // SECTOR 1: THE OUTSKIRTS
+  { id: 1, name: "ALPHA_PROTOCOL", objective: "Clear local sector of rogue drones.", type: 'ELIMINATION', targetValue: 5, difficulty: 1, coords: { x: 15, y: 25 } },
+  { id: 2, name: "NEON_SCARE", objective: "Eliminate reinforced security units.", type: 'ELIMINATION', targetValue: 10, difficulty: 2, coords: { x: 25, y: 40 } },
+  { id: 3, name: "PERIMETER_DEFENSE", objective: "Survive the hostile wave.", type: 'SURVIVAL', targetValue: 60, difficulty: 2, coords: { x: 35, y: 20 } },
+  { id: 4, name: "SUPPLY_RUN", objective: "Secure Data Drives from the area.", type: 'EXTRACTION', targetValue: 3, difficulty: 2, coords: { x: 20, y: 60 } },
+
+  // SECTOR 2: URBAN DECAY
+  { id: 5, name: "STREET_SWEEPER", objective: "Neutralize significant resistance.", type: 'ELIMINATION', targetValue: 25, difficulty: 3, coords: { x: 50, y: 45 } },
+  { id: 6, name: "BLACKOUT", objective: "Survive in low-vis conditions.", type: 'SURVIVAL', targetValue: 120, difficulty: 3, coords: { x: 60, y: 30 } },
+  { id: 7, name: "DATA_HEIST", objective: "Extract intel under heavy fire.", type: 'EXTRACTION', targetValue: 5, difficulty: 4, coords: { x: 65, y: 65 } },
+  { id: 8, name: "ELITE_HUNT", objective: "Eliminate High-Value Targets.", type: 'ELIMINATION', targetValue: 3, difficulty: 4, coords: { x: 55, y: 80 } }, // Note: Logic will treat as general kills for now unless we add elite logic
+
+  // SECTOR 3: THE CORE
+  { id: 9, name: "VOID_STRIKE", objective: "Survive the Void incursion.", type: 'SURVIVAL', targetValue: 180, difficulty: 5, coords: { x: 80, y: 35 } },
+  { id: 10, name: "OMNI_CORE", objective: "Total system purge initiated.", type: 'ELIMINATION', targetValue: 50, difficulty: 5, coords: { x: 90, y: 50 } },
+  { id: 11, name: "SYSTEM_CRASH", objective: "Recover Core fragments.", type: 'EXTRACTION', targetValue: 10, difficulty: 6, coords: { x: 85, y: 75 } },
+  { id: 12, name: "FINAL_JUDGEMENT", objective: "Defeat the Overlord forces.", type: 'ELIMINATION', targetValue: 100, difficulty: 7, coords: { x: 95, y: 90 } },
 ];
 
 const BootSequence: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
