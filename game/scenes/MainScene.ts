@@ -404,6 +404,12 @@ export class MainScene extends Phaser.Scene {
     if (!p) {
       p = this.physics.add.sprite(data.x, data.y, `hum_striker_pistol`);
       p.setDepth(9).setData('team', data.team).setCircle(22, 10, 10);
+
+      // Init interpolation targets
+      p.setData('targetX', data.x);
+      p.setData('targetY', data.y);
+      p.setData('targetAngle', data.angle);
+
       this.otherPlayers.set(targetId, p);
       this.otherPlayersGroup.add(p);
       const teamColor = data.team === 'alpha' ? '#f97316' : '#22d3ee';
@@ -411,10 +417,50 @@ export class MainScene extends Phaser.Scene {
       l = this.add.text(data.x, data.y - 60, teamPrefix + data.name, { fontSize: '12px', color: teamColor, fontStyle: 'bold', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
       this.otherLabels.set(targetId, l);
     }
-    p.setPosition(data.x, data.y);
-    p.setRotation(data.angle);
+
+    // Update targets for interpolation
+    p.setData('targetX', data.x);
+    p.setData('targetY', data.y);
+    p.setData('targetAngle', data.angle);
+    p.setData('targetX', data.x);
+    p.setData('targetY', data.y);
+    p.setData('targetAngle', data.angle);
+    p.setData('name', data.name);
     p.setTint(data.team === 'alpha' ? 0xf97316 : 0x22d3ee);
-    l?.setPosition(data.x, data.y - 60);
+  }
+
+  private updateRemotePlayers(delta: number) {
+    const lerpFactor = 0.2; // Adjust for smoothness (0.1 = slow/smooth, 0.5 = snappy)
+
+    this.otherPlayers.forEach((p, id) => {
+      const tx = p.getData('targetX');
+      const ty = p.getData('targetY');
+      const ta = p.getData('targetAngle');
+
+      if (tx !== undefined && ty !== undefined) {
+        // Interpolate position
+        p.x = Phaser.Math.Linear(p.x, tx, lerpFactor);
+        p.y = Phaser.Math.Linear(p.y, ty, lerpFactor);
+
+        // Intepolate rotation
+        if (ta !== undefined) {
+          const currentAngle = p.rotation;
+          // handle angle wrapping
+          let diff = ta - currentAngle;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          p.rotation = Phaser.Math.Linear(currentAngle, currentAngle + diff, lerpFactor);
+        }
+
+        // Update label position
+        const l = this.otherLabels.get(id);
+        if (l) l.setPosition(p.x, p.y - 60);
+
+        // Update shadow (if any) - assuming shadow is attached or managed in update loop?
+        // Current code manages playerShadow but not remote shadows explicitly in update AFAIK. 
+        // We will stick to label and sprite.
+      }
+    });
   }
 
   private setupUIElements() {
@@ -574,6 +620,9 @@ export class MainScene extends Phaser.Scene {
 
     this.playerShadow.setPosition(this.player.x + 6, this.player.y + 6);
     if (this.isHost || !this.roomId) this.updateAIBots(time);
+
+    // Interpolate remote players
+    if (this.roomId) this.updateRemotePlayers(delta);
 
     this.updateAuras();
     this.updateHUD();
