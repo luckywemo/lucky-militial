@@ -16,17 +16,19 @@ export const PEER_CONFIG = {
     port: 443,
     path: '/',
     secure: true,
-    debug: 2, // 2 = Warnings & Errors
+    debug: 2,
     config: {
         iceServers: [
-            // Standard Google STUN (Reliable for NAT punching)
+            // STUN Servers (Lightweight, helps with most NATs)
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun3.l.google.com:19302' },
             { urls: 'stun:stun4.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' },
 
-            // OpenRelay Project (Free TURN - Best Effort)
+            // TURN Servers (Relays, required for strict NATs/Firewalls)
+            // NOTE: Free tier OpenRelay. reliable for testing, may throttle in production.
             {
                 urls: 'turn:openrelay.metered.ca:80',
                 username: 'openrelayproject',
@@ -43,6 +45,7 @@ export const PEER_CONFIG = {
                 credential: 'openrelayproject'
             }
         ],
+        sdpSemantics: 'unified-plan',
         iceTransportPolicy: 'all' as RTCIceTransportPolicy,
         iceCandidatePoolSize: 10,
     }

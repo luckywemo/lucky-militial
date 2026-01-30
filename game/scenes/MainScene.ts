@@ -259,16 +259,19 @@ export class MainScene extends Phaser.Scene {
   private initMultiplayer() {
     if (this.isHost) {
       // Host creates a GAME peer with a different ID pattern to avoid conflict with Lobby peer
+      this.updateConnectionStatus('INITIALIZING HOST...', '#ffff00');
       const gamePeerId = getPeerId('GAME', this.roomId!);
       console.log('[MainScene] Host creating game peer:', gamePeerId);
       this.peer = new Peer(gamePeerId, PEER_CONFIG);
 
       this.peer.on('open', (id) => {
         console.log('[MainScene] Host game peer ready:', id);
+        this.updateConnectionStatus('HOST READY: WAITING FOR PLAYERS', '#00ff00');
       });
 
       this.peer.on('error', (err) => {
         console.error('[MainScene] Host peer error:', err);
+        this.updateConnectionStatus(`HOST ERROR: ${err.type}`, '#ff0000');
       });
 
       this.peer.on('connection', (conn) => {
@@ -277,11 +280,13 @@ export class MainScene extends Phaser.Scene {
       });
     } else {
       // Client creates a peer and connects to the host's GAME peer
+      this.updateConnectionStatus('INITIALIZING CLIENT...', '#ffff00');
       console.log('[MainScene] Client creating peer to connect to game...');
       this.peer = new Peer(PEER_CONFIG);
 
       this.peer.on('open', (id) => {
         console.log('[MainScene] Client peer ready:', id);
+        this.updateConnectionStatus('CLIENT READY: CONNECTING TO HOST...', '#ffff00');
         if (this.roomId) {
           this.connectToHostWithRetry(0);
         }
@@ -289,6 +294,7 @@ export class MainScene extends Phaser.Scene {
 
       this.peer.on('error', (err) => {
         console.error('[MainScene] Client peer error:', err);
+        this.updateConnectionStatus(`PEER ERROR: ${err.type}`, '#ff0000');
       });
 
       this.peer.on('connection', (conn) => this.handleConnection(conn));
@@ -301,11 +307,13 @@ export class MainScene extends Phaser.Scene {
 
     if (attempt >= maxAttempts) {
       console.error('[MainScene] Failed to connect after', maxAttempts, 'attempts');
+      this.updateConnectionStatus('CONNECTION FAILED (TIMEOUT)', '#ff0000');
       return;
     }
 
     const gamePeerId = getPeerId('GAME', this.roomId!);
     console.log(`[MainScene] Client connecting to host (attempt ${attempt + 1}/${maxAttempts}):`, gamePeerId);
+    this.updateConnectionStatus(`CONNECTING TO HOST (ATTEMPT ${attempt + 1})...`, '#ffff00');
 
     const conn = this.peer!.connect(gamePeerId, { reliable: true });
 
@@ -314,21 +322,34 @@ export class MainScene extends Phaser.Scene {
       if (!this.connections.has(conn.peer)) {
         console.log('[MainScene] Connection timeout, retrying...');
         const delay = baseDelay * Math.pow(2, attempt);
+        this.updateConnectionStatus(`TIMEOUT. RETRYING IN ${delay}ms...`, '#ffaa00');
         setTimeout(() => this.connectToHostWithRetry(attempt + 1), delay);
       }
-    }, 3000);
+    }, 5000); // Increased timeout for cross-region signaling
 
     conn.on('open', () => {
       clearTimeout(connectionTimeout);
       console.log('[MainScene] Successfully connected to host on attempt', attempt + 1);
+      this.updateConnectionStatus('CONNECTED TO HOST', '#00ff00');
       this.handleConnection(conn);
+
+      // Hide label after successful connection + 3s
+      this.time.delayedCall(3000, () => {
+        if (this.connectionLabel) this.connectionLabel.setVisible(false);
+      });
     });
 
     // Helper to log low-level ICE state
     if (conn.peerConnection) {
       conn.peerConnection.oniceconnectionstatechange = () => {
-        console.log(`[ICE STATE] ${conn.peerConnection.iceConnectionState}`);
-        if (conn.peerConnection.iceConnectionState === 'failed' || conn.peerConnection.iceConnectionState === 'disconnected') {
+        const state = conn.peerConnection.iceConnectionState;
+        console.log(`[ICE STATE] ${state}`);
+        if (state === 'checking') {
+          this.updateConnectionStatus('NAT TRAVERSAL (CHECKING)...', '#00ffff');
+        } else if (state === 'connected' || state === 'completed') {
+          this.updateConnectionStatus('P2P LINK CONFIRMED', '#00ff00');
+        } else if (state === 'failed' || state === 'disconnected') {
+          this.updateConnectionStatus('NAT/FIREWALL ERROR', '#ff0000');
           console.error('[MainScene] ICE Connection Failed! Potential NAT/Firewall issue.');
         }
       };
@@ -338,7 +359,7 @@ export class MainScene extends Phaser.Scene {
       clearTimeout(connectionTimeout);
       console.error('[MainScene] Connection error:', err);
       const delay = baseDelay * Math.pow(2, attempt);
-      console.log(`[MainScene] Retrying in ${delay}ms...`);
+      this.updateConnectionStatus(`CONN ERROR. RETRYING...`, '#ff0000');
       setTimeout(() => this.connectToHostWithRetry(attempt + 1), delay);
     });
   }
@@ -463,6 +484,8 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
+  private connectionLabel!: Phaser.GameObjects.Text;
+
   private setupUIElements() {
     const teamColor = this.playerTeam === 'alpha' ? '#f97316' : '#22d3ee';
     const teamPrefix = this.playerTeam === 'alpha' ? '[ALPHA] ' : '[BRAVO] ';
@@ -470,6 +493,22 @@ export class MainScene extends Phaser.Scene {
     this.weaponLabel = this.add.text(0, 0, this.currentWeapon.name, { fontSize: '10px', fontStyle: 'bold', color: '#ffffff', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(20);
     this.playerHpBar = this.add.graphics().setDepth(20);
     this.hitMarker = this.add.image(0, 0, 'hit_marker').setAlpha(0).setScrollFactor(0).setDepth(200).setScale(0.8);
+
+    // Connection Status Label (Top Right)
+    this.connectionLabel = this.add.text(1980, 20, 'CONNECTING...', {
+      fontSize: '14px',
+      fontFamily: 'monospace',
+      color: '#ffff00',
+      backgroundColor: '#00000080'
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
+
+    if (!this.roomId) this.connectionLabel.setVisible(false);
+  }
+
+  private updateConnectionStatus(status: string, color: string = '#ffffff') {
+    if (!this.connectionLabel) return;
+    this.connectionLabel.setText(status);
+    this.connectionLabel.setColor(color);
   }
 
   private initAudio() {
