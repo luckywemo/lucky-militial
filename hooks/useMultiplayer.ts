@@ -159,49 +159,77 @@ export function useMultiplayer({
 
         peerRef.current.on('error', (err) => {
             console.error('[Multiplayer] Client error:', err);
-            setStatusMsg('CONNECTION_FAILED');
+            // Don't kill state immediately, might be a temporary network blip
+            setStatusMsg(`PEER ERR: ${err.type}`);
         });
 
         peerRef.current.on('open', (id) => {
             const hostId = getPeerId('SCTR', code);
-            const conn = peerRef.current!.connect(hostId, { reliable: true });
+            connectToHostWithRetry(hostId, 0);
+        });
+    };
 
-            conn.on('error', (err) => {
-                console.error('[Multiplayer] Connection error:', err);
-                setStatusMsg('LINK_FAILED');
-            });
+    const connectToHostWithRetry = (hostId: string, attempt: number) => {
+        if (!peerRef.current) return;
 
-            conn.on('open', () => {
-                connections.current = [conn];
-                setStatusMsg('CONNECTED');
-                conn.send({ type: 'join', name: playerName, team: 'bravo' });
+        const MAX_ATTEMPTS = 5;
+        const BASE_DELAY = 1000;
 
-                const pc = (conn as any).peerConnection as RTCPeerConnection | undefined;
-                if (pc) {
-                    pc.addEventListener('iceconnectionstatechange', () => {
-                        setStatusMsg(getStatusFromIceState(pc.iceConnectionState));
-                    });
-                }
-            });
+        if (attempt >= MAX_ATTEMPTS) {
+            setStatusMsg('CONNECTION_TIMEOUT');
+            return;
+        }
 
-            conn.on('data', (data: any) => {
-                if (data.type === 'sync_squad' || data.type === 'welcome') {
-                    setSquad(data.squad);
-                    // Note: In a real app we'd trigger a callback to update Lobby settings here
-                    // For now, we'll assume the caller syncs these if needed via the returned state
-                }
-                if (data.type === 'start') {
-                    onGameStart(code, false, data.squad, data.mpConfig);
-                }
-                if (data.type === 'update_name') {
-                    setSquad((prev) => prev.map(m => m.id === data.id ? { ...m, name: data.name } : m));
-                }
-            });
+        setStatusMsg(attempt === 0 ? 'LINKING...' : `RETRYING (${attempt + 1}/${MAX_ATTEMPTS})...`);
 
-            conn.on('close', () => {
-                setStatusMsg('DISCONNECTED');
-                setActiveRoom(null);
-            });
+        const conn = peerRef.current.connect(hostId, { reliable: true });
+
+        // Set a timeout to verify connection
+        const timeoutId = setTimeout(() => {
+            if (!connections.current.some(c => c.peer === hostId && c.open)) {
+                console.log(`[Multiplayer] Connection timeout (Attempt ${attempt + 1}). Retrying...`);
+                // Close the stalled connection attempt if it exists
+                conn.close();
+                const delay = BASE_DELAY * Math.pow(1.5, attempt); // Exponential backoff
+                setTimeout(() => connectToHostWithRetry(hostId, attempt + 1), delay);
+            }
+        }, 4000); // 4s timeout per attempt
+
+        conn.on('error', (err) => {
+            clearTimeout(timeoutId);
+            console.error('[Multiplayer] Connection error:', err);
+            setStatusMsg('LINK_FAILED'); // Will be overwritten by retry or timeout
+        });
+
+        conn.on('open', () => {
+            clearTimeout(timeoutId);
+            connections.current = [conn];
+            setStatusMsg('CONNECTED');
+            conn.send({ type: 'join', name: playerName, team: 'bravo' });
+
+            const pc = (conn as any).peerConnection as RTCPeerConnection | undefined;
+            if (pc) {
+                pc.addEventListener('iceconnectionstatechange', () => {
+                    setStatusMsg(getStatusFromIceState(pc.iceConnectionState));
+                });
+            }
+        });
+
+        conn.on('data', (data: any) => {
+            if (data.type === 'sync_squad' || data.type === 'welcome') {
+                setSquad(data.squad);
+            }
+            if (data.type === 'start') {
+                onGameStart(hostId, false, data.squad, data.mpConfig);
+            }
+            if (data.type === 'update_name') {
+                setSquad((prev) => prev.map(m => m.id === data.id ? { ...m, name: data.name } : m));
+            }
+        });
+
+        conn.on('close', () => {
+            setStatusMsg('DISCONNECTED');
+            setActiveRoom(null);
         });
     };
 
