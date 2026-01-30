@@ -12,6 +12,7 @@ import { isInFarcaster } from '../utils/farcaster';
 import ProfileDashboard from './ProfileDashboard';
 import { PEER_CONFIG, getPeerId, getStatusFromIceState } from '../utils/multiplayer';
 import { useMultiplayer, SquadMember } from '../hooks/useMultiplayer';
+import { DebugConsole } from './DebugConsole';
 
 
 interface Props {
@@ -185,6 +186,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 lg:p-10 animate-in fade-in duration-500 font-mono overflow-y-auto overflow-x-hidden relative bg-black">
+      <DebugConsole />
       <div className="w-full max-w-[1300px] grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-8 pb-24 lg:pb-0">
 
         {/* LEFT NAV BAR */}

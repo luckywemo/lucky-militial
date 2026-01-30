@@ -1,5 +1,12 @@
-
-import Peer from 'peerjs';
+// Helper to dispatch logs to DebugConsole
+export const mpLog = (message: string, type: 'info' | 'error' | 'success' = 'info') => {
+    console.log(`[MP] ${message}`); // Keep console log for devtools
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('MULTIPLAYER_LOG', {
+            detail: { message, type }
+        }));
+    }
+};
 
 /**
  * Standardized PeerJS Configuration for Lucky Militia
@@ -7,10 +14,6 @@ import Peer from 'peerjs';
  */
 
 // We use 0.peerjs.com as the primary signaling server.
-// It is the most reliable among free public options for cross-device discovery.
-// Standardized PeerJS Config
-// NOTE: For production, you MUST use a paid TURN server (e.g., Twilio, Xirsys, or a private Metered account).
-// The credentials below are for the public OpenRelay project and may be rate-limited.
 export const PEER_CONFIG = {
     host: '0.peerjs.com',
     port: 443,
@@ -45,7 +48,7 @@ export const PEER_CONFIG = {
                 credential: 'openrelayproject'
             }
         ],
-        sdpSemantics: 'unified-plan',
+        // Removed sdpSemantics: 'unified-plan' to allow browser default (Plan B legacy support on some mobiles)
         iceTransportPolicy: 'all' as RTCIceTransportPolicy,
         iceCandidatePoolSize: 10,
     }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Peer, { DataConnection } from 'peerjs';
-import { PEER_CONFIG, getPeerId, getStatusFromIceState } from '../utils/multiplayer';
+import { PEER_CONFIG, getPeerId, getStatusFromIceState, mpLog } from '../utils/multiplayer';
 import { MPMatchMode, MPMap } from '../App';
 
 export interface SquadMember {
@@ -45,6 +45,7 @@ export function useMultiplayer({
     useEffect(() => {
         return () => {
             if (peerRef.current) {
+                mpLog('Disconnecting: Cleaning up local peer session', 'info');
                 peerRef.current.destroy();
             }
         };
@@ -82,71 +83,87 @@ export function useMultiplayer({
         setActiveRoom(code);
         setSquad([{ name: playerName, team: 'alpha', id: 'host' }]);
         setStatusMsg('TRANSMITTING...');
+        mpLog(`Initializing Host Session for Room ${code}...`, 'info');
 
-        peerRef.current = new Peer(getPeerId('SCTR', code), PEER_CONFIG);
+        try {
+            const peerId = getPeerId('SCTR', code);
+            peerRef.current = new Peer(peerId, PEER_CONFIG);
 
-        peerRef.current.on('error', (err) => {
-            console.error('[Multiplayer] Host error:', err);
-            if (err.type === 'peer-unavailable') setStatusMsg('ROOM_NOT_FOUND');
-            else if (err.type === 'unavailable-id') setStatusMsg('CODE_COLLISION_RETRY');
-            else setStatusMsg(`SERVER_ERR: ${err.type}`);
-        });
+            peerRef.current.on('error', (err) => {
+                console.error('[Multiplayer] Host error:', err);
+                mpLog(`HOST_ERR: ${err.type} - ${err.message}`, 'error');
+                if (err.type === 'peer-unavailable') setStatusMsg('ROOM_NOT_FOUND');
+                else if (err.type === 'unavailable-id') setStatusMsg('CODE_COLLISION_RETRY');
+                else setStatusMsg(`SERVER_ERR: ${err.type}`);
+            });
 
-        peerRef.current.on('open', (id) => {
-            console.log('[Multiplayer] Host ready:', id);
-            setStatusMsg('BROADCASTING');
-        });
+            peerRef.current.on('open', (id) => {
+                console.log('[Multiplayer] Host ready:', id);
+                mpLog(`HOST_READY: ID=${id}. Waiting for peers on signaling server...`, 'success');
+                setStatusMsg('BROADCASTING');
+            });
 
-        peerRef.current.on('connection', (conn) => {
-            conn.on('open', () => {
-                connections.current.push(conn);
-                conn.send({
-                    type: 'welcome',
-                    squad: squadRef.current,
-                    settings: { mpMatchMode, mpMap, scoreLimit, alphaBots, bravoBots }
+            peerRef.current.on('connection', (conn) => {
+                mpLog(`Incoming connection request from ${conn.peer}...`, 'info');
+
+                conn.on('open', () => {
+                    mpLog(`Connection established with ${conn.peer}`, 'success');
+                    connections.current.push(conn);
+                    conn.send({
+                        type: 'welcome',
+                        squad: squadRef.current,
+                        settings: { mpMatchMode, mpMap, scoreLimit, alphaBots, bravoBots }
+                    });
+
+                    // @ts-ignore
+                    const pc = conn.peerConnection as RTCPeerConnection;
+                    if (pc) {
+                        pc.addEventListener('iceconnectionstatechange', () => {
+                            const state = pc.iceConnectionState;
+                            mpLog(`ICE State (${conn.peer}): ${state}`, state === 'failed' ? 'error' : 'info');
+                            if (state === 'failed') setStatusMsg('CLIENT_LINK_FAILED');
+                        });
+                    }
                 });
 
-                const pc = (conn as any).peerConnection as RTCPeerConnection | undefined;
-                if (pc) {
-                    pc.addEventListener('iceconnectionstatechange', () => {
-                        if (pc.iceConnectionState === 'failed') setStatusMsg('CLIENT_LINK_FAILED');
-                    });
-                }
-            });
+                conn.on('data', (data: any) => {
+                    if (data.type === 'join') {
+                        mpLog(`Player ${data.name} joined squad`, 'success');
+                        setSquad((prev) => {
+                            const next = [...prev.filter(m => m.id !== conn.peer), { name: data.name, team: data.team, id: conn.peer }];
+                            broadcastSquad(next);
+                            return next;
+                        });
+                    }
+                    if (data.type === 'switch_team') {
+                        setSquad((prev) => {
+                            const next = prev.map(m => m.id === conn.peer ? { ...m, team: data.team } : m);
+                            broadcastSquad(next);
+                            return next;
+                        });
+                    }
+                    if (data.type === 'update_name') {
+                        setSquad((prev) => {
+                            const next = prev.map(m => m.id === conn.peer ? { ...m, name: data.name } : m);
+                            broadcastSquad(next);
+                            return next;
+                        });
+                    }
+                });
 
-            conn.on('data', (data: any) => {
-                if (data.type === 'join') {
-                    setSquad((prev) => {
-                        const next = [...prev.filter(m => m.id !== conn.peer), { name: data.name, team: data.team, id: conn.peer }];
+                conn.on('close', () => {
+                    mpLog(`Connection closed: ${conn.peer}`, 'info');
+                    connections.current = connections.current.filter(c => c !== conn);
+                    setSquad(prev => {
+                        const next = prev.filter(m => m.id !== conn.peer);
                         broadcastSquad(next);
                         return next;
                     });
-                }
-                if (data.type === 'switch_team') {
-                    setSquad((prev) => {
-                        const next = prev.map(m => m.id === conn.peer ? { ...m, team: data.team } : m);
-                        broadcastSquad(next);
-                        return next;
-                    });
-                }
-                if (data.type === 'update_name') {
-                    setSquad((prev) => {
-                        const next = prev.map(m => m.id === conn.peer ? { ...m, name: data.name } : m);
-                        broadcastSquad(next);
-                        return next;
-                    });
-                }
-            });
-
-            conn.on('close', () => {
-                connections.current = connections.current.filter(c => c !== conn);
-                setSquad(prev => {
-                    const next = prev.filter(m => m.id !== conn.peer);
-                    broadcastSquad(next);
-                    return next;
                 });
             });
-        });
+        } catch (e: any) {
+            mpLog(`CRITICAL HOST ERR: ${e.message}`, 'error');
+        }
     };
 
     const handleJoinRoom = (code: string) => {
@@ -154,19 +171,26 @@ export function useMultiplayer({
         setIsHost(false);
         setActiveRoom(code);
         setStatusMsg('LINKING...');
+        mpLog(`Initializing Client for Room ${code}...`, 'info');
 
-        peerRef.current = new Peer(PEER_CONFIG);
+        try {
+            peerRef.current = new Peer(PEER_CONFIG);
 
-        peerRef.current.on('error', (err) => {
-            console.error('[Multiplayer] Client error:', err);
-            // Don't kill state immediately, might be a temporary network blip
-            setStatusMsg(`PEER ERR: ${err.type}`);
-        });
+            peerRef.current.on('error', (err) => {
+                console.error('[Multiplayer] Client error:', err);
+                mpLog(`CLIENT_ERR: ${err.type} - ${err.message}`, 'error');
+                // Don't kill state immediately, might be a temporary network blip
+                setStatusMsg(`PEER ERR: ${err.type}`);
+            });
 
-        peerRef.current.on('open', (id) => {
-            const hostId = getPeerId('SCTR', code);
-            connectToHostWithRetry(hostId, 0);
-        });
+            peerRef.current.on('open', (id) => {
+                mpLog(`Client Peer Created: ${id}. Locating Host...`, 'info');
+                const hostId = getPeerId('SCTR', code);
+                connectToHostWithRetry(hostId, 0);
+            });
+        } catch (e: any) {
+            mpLog(`CRITICAL CLIENT ERR: ${e.message}`, 'error');
+        }
     };
 
     const connectToHostWithRetry = (hostId: string, attempt: number) => {
@@ -177,17 +201,19 @@ export function useMultiplayer({
 
         if (attempt >= MAX_ATTEMPTS) {
             setStatusMsg('CONNECTION_TIMEOUT');
+            mpLog(`Connection timed out after ${MAX_ATTEMPTS} attempts. Host not reachable.`, 'error');
             return;
         }
 
         setStatusMsg(attempt === 0 ? 'LINKING...' : `RETRYING (${attempt + 1}/${MAX_ATTEMPTS})...`);
+        mpLog(`Connecting to Host: ${hostId} (Attempt ${attempt + 1})...`, 'info');
 
         const conn = peerRef.current.connect(hostId, { reliable: true });
 
         // Set a timeout to verify connection
         const timeoutId = setTimeout(() => {
             if (!connections.current.some(c => c.peer === hostId && c.open)) {
-                console.log(`[Multiplayer] Connection timeout (Attempt ${attempt + 1}). Retrying...`);
+                mpLog(`Connection attempt ${attempt + 1} timed out (no open event).`, 'error');
                 // Close the stalled connection attempt if it exists
                 conn.close();
                 const delay = BASE_DELAY * Math.pow(1.5, attempt); // Exponential backoff
@@ -198,28 +224,35 @@ export function useMultiplayer({
         conn.on('error', (err) => {
             clearTimeout(timeoutId);
             console.error('[Multiplayer] Connection error:', err);
+            mpLog(`CONN_ERR: ${err.type} - ${err.message}`, 'error');
             setStatusMsg('LINK_FAILED'); // Will be overwritten by retry or timeout
         });
 
         conn.on('open', () => {
             clearTimeout(timeoutId);
+            mpLog('Connection to Host OPEN! Sending Join Request...', 'success');
             connections.current = [conn];
             setStatusMsg('CONNECTED');
             conn.send({ type: 'join', name: playerName, team: 'bravo' });
 
-            const pc = (conn as any).peerConnection as RTCPeerConnection | undefined;
+            // @ts-ignore
+            const pc = conn.peerConnection as RTCPeerConnection;
             if (pc) {
                 pc.addEventListener('iceconnectionstatechange', () => {
-                    setStatusMsg(getStatusFromIceState(pc.iceConnectionState));
+                    const state = pc.iceConnectionState;
+                    mpLog(`ICE State: ${state}`, state === 'failed' ? 'error' : 'info');
+                    setStatusMsg(getStatusFromIceState(state));
                 });
             }
         });
 
         conn.on('data', (data: any) => {
             if (data.type === 'sync_squad' || data.type === 'welcome') {
+                if (data.type === 'welcome') mpLog('Joined Squad Successfully', 'success');
                 setSquad(data.squad);
             }
             if (data.type === 'start') {
+                mpLog('Game Start signal received!', 'success');
                 onGameStart(hostId, false, data.squad, data.mpConfig);
             }
             if (data.type === 'update_name') {
@@ -228,6 +261,7 @@ export function useMultiplayer({
         });
 
         conn.on('close', () => {
+            mpLog('Connection to Host closed.', 'error');
             setStatusMsg('DISCONNECTED');
             setActiveRoom(null);
         });
@@ -253,6 +287,7 @@ export function useMultiplayer({
 
     const initiateStart = (config: any) => {
         if (!isHost || !activeRoom) return;
+        mpLog('Broadcasting Game Start...', 'info');
         connections.current.forEach(c => c.send({
             type: 'start',
             squad: squadRef.current,
