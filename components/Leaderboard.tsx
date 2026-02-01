@@ -3,17 +3,26 @@ import { useAccount } from 'wagmi';
 
 export default function Leaderboard() {
     const { address } = useAccount();
-    const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [period, setPeriod] = useState('alltime');
 
     useEffect(() => {
         async function fetchLeaderboard() {
             try {
                 setIsLoading(true);
-                // In production this would be /api/leaderboard
-                // Since we are using Vite, we might need to handle the path or use a full URL if testing locally
-                const response = await fetch('/api/leaderboard');
+                // Calculate period key:
+                // All Time: alltime
+                // Monthly: monthly:YYYYMM
+                // Daily: daily:YYYYMMDD
+
+                let queryPeriod = 'alltime';
+                const now = new Date();
+                const ymd = now.toISOString().split('T')[0].replace(/-/g, '');
+                const ym = ymd.substring(0, 6);
+
+                if (period === 'daily') queryPeriod = `daily:${ymd}`;
+                if (period === 'monthly') queryPeriod = `monthly:${ym}`;
+
+                const response = await fetch(`/api/leaderboard?period=${queryPeriod}`);
                 if (!response.ok) throw new Error('Failed to fetch leaderboard');
                 const data = await response.json();
                 setLeaderboardData(data);
@@ -27,7 +36,7 @@ export default function Leaderboard() {
         }
 
         fetchLeaderboard();
-    }, []);
+    }, [period]);
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -35,12 +44,22 @@ export default function Leaderboard() {
                 <div className="absolute top-0 left-0 w-1 h-full bg-orange-500"></div>
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-2">
-                        <span>🏆</span> GLOBAL_LEADERBOARD
+                        <span>🏆</span> LEADERBOARD
                     </h3>
-                    <div className="px-2 py-0.5 bg-orange-600/20 border border-orange-500/30 rounded text-[8px] font-black text-orange-500">SEASON_01</div>
+                    <div className="flex gap-1">
+                        {['alltime', 'monthly', 'daily'].map((p) => (
+                            <button
+                                key={p}
+                                onClick={() => setPeriod(p)}
+                                className={`px-2 py-1 border rounded text-[8px] font-black uppercase transition-all ${period === p ? 'bg-orange-500 text-white border-orange-500' : 'bg-transparent text-stone-500 border-stone-800 hover:border-stone-600 hover:text-stone-300'}`}
+                            >
+                                {p === 'alltime' ? 'ALL_TIME' : p}
+                            </button>
+                        ))}
+                    </div>
                 </div>
                 <p className="text-[10px] text-stone-500 font-bold uppercase tracking-wider">
-                    On-Chain_Combat_Records // Base_Network
+                    Combat_Records // {period.toUpperCase()}
                 </p>
             </div>
 
@@ -60,7 +79,7 @@ export default function Leaderboard() {
                         ))}
                     </div>
                 ) : leaderboardData.length > 0 ? (
-                    leaderboardData.slice(0, 10).map((op, index) => (
+                    leaderboardData.slice(0, 50).map((op, index) => (
                         <div key={op.address} className={`grid grid-cols-12 gap-2 px-4 py-3 bg-stone-900/40 border ${op.address === address ? 'border-orange-500/50 bg-orange-500/5' : 'border-stone-800'} rounded flex items-center group hover:bg-white/5 transition-all`}>
                             <div className={`col-span-1 font-black ${index < 3 ? 'text-orange-500' : 'text-stone-500'}`}>{index + 1}</div>
                             <div className="col-span-5 flex items-center gap-2">
@@ -78,14 +97,14 @@ export default function Leaderboard() {
                     ))
                 ) : (
                     <div className="text-center py-10 bg-stone-950/40 border border-dashed border-stone-800 rounded">
-                        <p className="text-[10px] text-stone-600 font-black uppercase tracking-widest">Awaiting_Initial_Combat_Logs</p>
+                        <p className="text-[10px] text-stone-600 font-black uppercase tracking-widest">NO_DATA_FOR_PERIOD</p>
                     </div>
                 )}
             </div>
 
             <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-lg text-center">
                 <p className="text-[8px] text-orange-500/60 font-black uppercase italic">
-                    "REAL-TIME STATS SYNCHRONIZED VIA BASE SMART CONTRACTS"
+                    "REAL-TIME STATS SYNCHRONIZED"
                 </p>
             </div>
         </div>

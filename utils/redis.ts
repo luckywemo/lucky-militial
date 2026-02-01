@@ -18,4 +18,7 @@ export const K = {
     PLAYER_STATS: (address: string) => `lm:player:${address.toLowerCase()}:stats`,
     GLOBAL_CONFIG: 'lm:config',
     ACTIVE_SESSIONS: 'lm:sessions',
+    // Time-based Leaderboards
+    LB_SCORE: (period: string) => `lm:lb:${period}`,
+    STATS_HASH: (period: string, address: string) => `lm:stats:${period}:${address.toLowerCase()}`,
 }

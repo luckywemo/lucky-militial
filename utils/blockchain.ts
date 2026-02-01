@@ -74,15 +74,20 @@ export function useBlockchainStats() {
     };
 
     const syncStats = async (kills: number, wins: number) => {
-        if (!address) return;
-        return writeContractAsync({
-            address: CONTRACT_ADDRESS,
-            abi: LUCKY_MILITIA_ABI,
-            functionName: 'updateStats',
-            args: [address as `0x${string}`, BigInt(kills), BigInt(wins), true],
-            account: address,
-            chain: TARGET_CHAIN,
-        });
+        // Use backend API for improved reliability and leaderboard sync
+        try {
+            console.log('[Sync] Submitting to backend:', { address, kills, wins });
+            const res = await fetch('/api/sync-stats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ address, kills, wins })
+            });
+            if (!res.ok) throw new Error('Sync failed');
+            return true;
+        } catch (e) {
+            console.error('[Sync] Error:', e);
+            return false;
+        }
     };
 
     return { recordKill, recordWin, syncStats };
