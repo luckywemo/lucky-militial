@@ -351,20 +351,45 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 lg:gap-4">
-                  <div className="bg-stone-900/40 border border-stone-800 rounded p-2 lg:p-4 flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const maps: MPMap[] = ['URBAN_RUINS', 'THE_PIT', 'OUTPOST_X'];
+                      const nextIndex = (maps.indexOf(mpMap) + 1) % maps.length;
+                      setMpMap(maps[nextIndex]);
+                    }}
+                    className="bg-stone-900/40 border border-stone-800 rounded p-2 lg:p-4 flex items-center gap-2 hover:bg-stone-800 transition-colors text-left"
+                  >
                     <div className="text-lg lg:text-3xl">{MAP_META[mpMap].icon}</div>
                     <div>
-                      <div className="text-[6px] lg:text-[8px] text-stone-600 uppercase font-black">MAP</div>
+                      <div className="text-[6px] lg:text-[8px] text-stone-600 uppercase font-black">MAP (CLICK TO CHANGE)</div>
                       <div className="text-[8px] lg:text-[12px] text-white font-black uppercase truncate">{MAP_META[mpMap].name}</div>
                     </div>
-                  </div>
-                  <div className="bg-stone-900/40 border border-stone-800 rounded p-2 lg:p-4 flex items-center gap-2">
+                  </button>
+                  <button
+                    onClick={() => {
+                      const modes: MPMatchMode[] = ['TDM', 'FFA', 'HARDPOINT', '1V1'];
+                      const nextIndex = (modes.indexOf(mpMatchMode) + 1) % modes.length;
+                      const newMode = modes[nextIndex];
+                      setMpMatchMode(newMode);
+                      if (newMode === '1V1') {
+                        setAlphaBots(0);
+                        setBravoBots(0);
+                      } else {
+                        // Reset to defaults if switching away from 1v1, or keep current
+                        if (alphaBots === 0 && bravoBots === 0) {
+                          setAlphaBots(2);
+                          setBravoBots(2);
+                        }
+                      }
+                    }}
+                    className="bg-stone-900/40 border border-stone-800 rounded p-2 lg:p-4 flex items-center gap-2 hover:bg-stone-800 transition-colors text-left"
+                  >
                     <div className="text-lg lg:text-3xl">⚔️</div>
                     <div>
-                      <div className="text-[6px] lg:text-[8px] text-stone-600 uppercase font-black">MODE</div>
+                      <div className="text-[6px] lg:text-[8px] text-stone-600 uppercase font-black">MODE (CLICK TO CHANGE)</div>
                       <div className="text-[8px] lg:text-[12px] text-orange-500 font-black uppercase">{mpMatchMode}</div>
                     </div>
-                  </div>
+                  </button>
                 </div>
 
                 <div className="space-y-4">

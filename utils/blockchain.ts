@@ -2,10 +2,29 @@ import { useWriteContract, useReadContract, useAccount } from 'wagmi';
 import { base, baseSepolia } from 'wagmi/chains';
 
 // Unified Contract Address
-export const CONTRACT_ADDRESS = (import.meta.env.VITE_HUB_ADDRESS || import.meta.env.VITE_REWARDS_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
+// Helper to safely get env vars in both Vite (Client) and Vercel (Server)
+const getEnv = (key: string) => {
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+        return import.meta.env[key];
+    }
+    if (typeof process !== 'undefined' && process.env) {
+        return process.env[key];
+    }
+    return '';
+};
+
+// Unified Contract Address
+const ADDR = (getEnv('VITE_HUB_ADDRESS') || getEnv('VITE_REWARDS_ADDRESS') || '0x0000000000000000000000000000000000000000') as `0x${string}`;
+export const CONTRACT_ADDRESS = ADDR;
+
+// Backward compatibility for API
+export const CONTRACT_ADDRESSES = {
+    LEADERBOARD: ADDR,
+    HUB: ADDR
+};
 
 // Target network from environment variable
-export const TARGET_CHAIN = import.meta.env.VITE_NETWORK === 'base' ? base : baseSepolia;
+export const TARGET_CHAIN = getEnv('VITE_NETWORK') === 'base' ? base : baseSepolia;
 
 // Unified ABI for LuckyMilitia (ERC1155 + Game Logic)
 export const LUCKY_MILITIA_ABI = [

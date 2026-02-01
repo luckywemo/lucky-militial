@@ -91,6 +91,9 @@ export class MainScene extends Phaser.Scene {
   private roomId: string | null = null;
   private isHost = false;
   private seededRnd!: Phaser.Math.RandomDataGenerator;
+  private rngSeed: number = 0;
+  private nextRnd!: () => number;
+  private rndBetween!: (min: number, max: number) => number;
 
   private teamScores = { alpha: 0, bravo: 0 };
   private safeZoneTimer = 0;
@@ -193,7 +196,30 @@ export class MainScene extends Phaser.Scene {
     this.initAudio();
 
     // Initialize seeded random for consistent map generation
-    this.seededRnd = new Phaser.Math.RandomDataGenerator([this.roomId || 'mission-seed']);
+    // Initialize custom LCG for guaranteed deterministic map generation across devices
+    // Phaser's internal RNG can vary by implementation. We use a simple LCG here.
+    const seedString = this.roomId || 'mission-seed';
+    let hash = 0;
+    for (let i = 0; i < seedString.length; i++) {
+      hash = ((hash << 5) - hash) + seedString.charCodeAt(i);
+      hash |= 0; // Convert to 32bit integer
+    }
+    this.rngSeed = Math.abs(hash);
+
+    // Helper for next random integer
+    this.nextRnd = () => {
+      this.rngSeed = (this.rngSeed * 1664525 + 1013904223) % 4294967296;
+      return this.rngSeed / 4294967296;
+    };
+
+    // Helper for range [min, max]
+    this.rndBetween = (min: number, max: number) => {
+      return Math.floor(this.nextRnd() * (max - min + 1)) + min;
+    };
+
+    console.log(`[LCG] Initialized with seed: ${this.roomId} -> Hash: ${this.rngSeed}`);
+
+    this.seededRnd = new Phaser.Math.RandomDataGenerator([this.roomId || 'mission-seed']); // Keep for legacy callbacks or non-critical RNG if needed, but we will use custom for map.
 
     this.physics.world.setBounds(0, 0, 2000, 2000);
     this.setupTextures();
@@ -1213,7 +1239,7 @@ export class MainScene extends Phaser.Scene {
       this.walls.create(i * 64, 0, 'wall_block'); this.walls.create(i * 64, 2000, 'wall_block');
       this.walls.create(0, i * 64, 'wall_block'); this.walls.create(2000, i * 64, 'wall_block');
     }
-    if (map === 'URBAN_RUINS') { for (let i = 0; i < 15; i++) this.walls.create(this.seededRnd.between(400, 1600), this.seededRnd.between(400, 1600), 'wall_block').setScale(1.5).refreshBody(); }
+    if (map === 'URBAN_RUINS') { for (let i = 0; i < 15; i++) this.walls.create(this.rndBetween(400, 1600), this.rndBetween(400, 1600), 'wall_block').setScale(1.5).refreshBody(); }
     else if (map === 'THE_PIT') { for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; this.walls.create(1000 + Math.cos(a) * 300, 1000 + Math.sin(a) * 300, 'wall_block'); } }
     else { for (let i = 0; i < 10; i++) { this.walls.create(500, i * 128, 'wall_block'); this.walls.create(1500, 2000 - i * 128, 'wall_block'); } }
   }
