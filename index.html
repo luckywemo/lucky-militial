@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="screen-orientation" content="landscape">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Lucky Militia | Tactical Operations Terminal</title>
+  <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#f97316" />
+
+  <!-- Base Builder Code (ERC-8021 Attribution) -->
+  <meta name="base:app_id" content="69f908e742a05e8fbed05262" />
+
+  <!-- Farcaster Frame Meta Tags -->
+  <meta property="fc:frame" content="vNext" />
+  <meta property="fc:frame:image" content="https://lucky-militial.vercel.app/og-image.png" />
+  <meta property="fc:frame:button:1" content="🎮 Play Now" />
+  <meta property="fc:frame:button:1:action" content="link" />
+  <meta property="fc:frame:button:1:target" content="https://lucky-militial.vercel.app" />
+  <meta property="fc:frame:button:2" content="📊 Leaderboard" />
+  <meta property="fc:frame:button:2:action" content="post" />
+  <meta property="fc:frame:post_url" content="https://lucky-militial.vercel.app/api/frame/leaderboard" />
+  <meta property="fc:frame:manifest" content="https://lucky-militial.vercel.app/.well-known/farcaster.json" />
+
+  <!-- Open Graph for sharing -->
+  <meta property="og:title" content="Lucky Militia - Tactical Multiplayer Shooter" />
+  <meta property="og:description" content="Play tactical multiplayer combat with friends on Base!" />
+  <meta property="og:image" content="https://lucky-militial.vercel.app/og-image.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&family=Stardos+Stencil:wght@400;700&family=Inter:wght@400;700;900&display=swap');
+
+    :root {
+      --mil-orange: #f97316;
+      --mil-cyan: #22d3ee;
+      --mil-bg: #050505;
+      --mil-border: rgba(249, 115, 22, 0.2);
+      --mil-glass: rgba(10, 10, 10, 0.85);
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      background-color: var(--mil-bg);
+      font-family: 'JetBrains Mono', monospace;
+      color: #d6d3d1;
+      user-select: none;
+      overscroll-behavior: none;
+    }
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      outline: none;
+      image-rendering: pixelated;
+    }
+
+    /* Tactical Visor Layer */
+    .visor-mask {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      box-shadow: inset 0 0 200px rgba(0, 0, 0, 0.9);
+      background:
+        linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, 0.01), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.01));
+      background-size: 100% 4px, 4px 100%;
+      animation: crt-flicker 0.15s infinite;
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9998;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      opacity: 0.04;
+      mix-blend-mode: overlay;
+    }
+
+    @keyframes crt-flicker {
+      0% {
+        opacity: 0.98;
+      }
+
+      50% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0.99;
+      }
+    }
+
+    .visor-corner {
+      position: fixed;
+      width: 60px;
+      height: 60px;
+      border-color: var(--mil-orange);
+      border-width: 1px;
+      pointer-events: none;
+      z-index: 10000;
+      opacity: 0.2;
+      transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+    }
+
+    .tactical-panel {
+      background: var(--mil-glass);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.75), 0 18px 36px -18px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .tactical-panel::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(249, 115, 22, 0.4), transparent);
+      opacity: 0.5;
+    }
+
+    .stencil-cutout {
+      clip-path: polygon(0 0, 100% 0, 100% 90%, 95% 100%, 0 100%);
+    }
+
+    .btn-tactical {
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 0.2em;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-tactical:hover {
+      background: var(--mil-orange);
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(249, 115, 22, 0.4);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-tactical:active {
+      transform: translateY(1px) scale(0.97);
+    }
+
+    .scanline-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9997;
+      background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.05) 1px, transparent 1px, transparent 3px);
+      animation: scanline-move 12s linear infinite;
+    }
+
+    @keyframes scanline-move {
+      from {
+        background-position: 0 0;
+      }
+
+      to {
+        background-position: 0 100%;
+      }
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.5);
+        opacity: 0;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
+
+      100% {
+        transform: scale(1.6);
+        opacity: 0;
+      }
+    }
+
+    .mission-pulse {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 4px;
+      border: 2px solid var(--mil-orange);
+      animation: pulse-ring 2s ease-out infinite;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #222;
+      border-radius: 0;
+      transition: background 0.2s;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--mil-orange);
+    }
+
+    .font-stencil {
+      font-family: 'Stardos Stencil', cursive;
+    }
+
+    /* Tactical HUD Text Glow */
+    .hud-glow {
+      text-shadow: 0 0 10px rgba(249, 115, 22, 0.5);
+    }
+
+    .hud-glow-cyan {
+      text-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+    }
+
+    /* Glitch Effect */
+    .glitch-hover:hover {
+      animation: glitch 0.3s cubic-bezier(.25, .46, .45, .94) both infinite;
+    }
+
+    @keyframes glitch {
+      0% {
+        transform: translate(0);
+      }
+
+      20% {
+        transform: translate(-2px, 2px);
+      }
+
+      40% {
+        transform: translate(-2px, -2px);
+      }
+
+      60% {
+        transform: translate(2px, 2px);
+      }
+
+      80% {
+        transform: translate(2px, -2px);
+      }
+
+      100% {
+        transform: translate(0);
+      }
+    }
+  </style>
+
+</head>
+
+<body class="bg-black">
+  <div class="noise"></div>
+  <div class="scanline-overlay"></div>
+  <div class="visor-mask"></div>
+  <div class="visor-corner top-0 left-0 border-t-2 border-l-2 m-4 rounded-tl"></div>
+  <div class="visor-corner top-0 right-0 border-t-2 border-r-2 m-4 rounded-tr"></div>
+  <div class="visor-corner bottom-0 left-0 border-b-2 border-l-2 m-4 rounded-bl"></div>
+  <div class="visor-corner bottom-0 right-0 border-b-2 border-r-2 m-4 rounded-br"></div>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+  <script>
+    // Attempt to lock screen orientation to landscape
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {
+        // Orientation lock not supported or denied
+      });
+    }
+  </script>
+</body>
+
+</html>
