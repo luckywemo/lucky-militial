@@ -9,6 +9,7 @@ import {
   celoRegisterPlayer,
   celoRecordMatch,
   celoGetStats,
+  celoGetBalance,
 } from './celoProvider';
 
 // ──────────────────────────────────────────
@@ -78,12 +79,31 @@ export function useBlockchainStats() {
     return 'GUEST_NETWORK';
   }, [isConnected, chain, onMiniPay]);
 
+  const [celoBalance, setCeloBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (onMiniPay && miniPayAddr) {
+      const fetchBalance = async () => {
+        const balStr = await celoGetBalance();
+        setCeloBalance(parseFloat(balStr));
+      };
+      fetchBalance();
+      const interval = setInterval(fetchBalance, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [onMiniPay, miniPayAddr]);
+
   const hasFunds = useMemo(() => {
+    if (onMiniPay) {
+      // Check if they have at least a tiny bit of CELO to cover gas (0.0001 CELO is plenty for Celo)
+      if (celoBalance === null) return true; // optimistic while loading
+      return celoBalance >= 0.0001;
+    }
     if (!isConnected || !balanceData) return true;
     
     // 0.00002 ETH is enough to cover multiple transactions on Base
     return balanceData.value >= 20000000000000n;
-  }, [isConnected, balanceData]);
+  }, [isConnected, balanceData, onMiniPay, celoBalance]);
 
   // ── REGISTER PLAYER (on-chain + Redis) ──
   const setUsername = useCallback(async (username: string) => {

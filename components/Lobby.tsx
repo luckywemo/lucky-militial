@@ -871,7 +871,9 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
             ) : !hasFunds && activeAddress ? (
                <div className="flex flex-col items-center justify-center gap-2">
                  <span className="text-red-500">INSUFFICIENT FUNDS</span>
-                 <span className="text-[12px] tracking-widest text-red-400 font-sans font-bold">PLEASE FUND WALLET WITH BASE ETH</span>
+                 <span className="text-[12px] tracking-widest text-red-400 font-sans font-bold">
+                   PLEASE FUND WALLET WITH {onMiniPay ? 'CELO' : 'BASE ETH'}
+                 </span>
                </div>
             ) : !activeAddress ? 'ESTABLISH LINK' : (playerName === 'ROOKIE' || playerName.startsWith('OPERATOR_')) ? 'INITIALIZE REQUIRED' : (tab === 'multiplayer' && isHost && squad.some(m => !m.isReady)) ? 'WAITING FOR SQUAD' : 'DEPLOY'}
           </button>
@@ -895,7 +897,7 @@ const Lobby: React.FC<Props> = ({ playerName, setPlayerName, characterClass, set
               <span>LINKING...</span>
             </>
           ) : !hasFunds && activeAddress ? (
-            <span className="text-red-500 animate-pulse">FUND WALLET</span>
+            <span className="text-red-500 animate-pulse">FUND WALLET ({onMiniPay ? 'CELO' : 'BASE ETH'})</span>
           ) : !activeAddress ? 'Establish Link' : (playerName === 'ROOKIE' || playerName.startsWith('OPERATOR_')) ? 'Initialize Required' : (tab === 'multiplayer' && isHost && squad.some(m => !m.isReady)) ? 'Waiting for Squad' : 'Tactical Deployment'}
         </button>
       </div>
