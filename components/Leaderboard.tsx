@@ -233,7 +233,7 @@ export default function Leaderboard({ activeAddress, playerName }: Props) {
             </div>
 
             {/* Leaderboard Body */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-h-[40vh] lg:max-h-[500px] overflow-y-auto pr-2 pb-2">
                 {isLoading ? (
                     <div className="space-y-2">
                         {[1, 2, 3, 4, 5].map(i => (

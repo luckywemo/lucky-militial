@@ -113,27 +113,19 @@ export function useBlockchainStats() {
 
       const walletAddress = activeAddress || `guest:${username}`;
 
-      // ─── PATH A: MiniPay → Direct Celo contract call (EOA) ───
-      if (onMiniPay && miniPayAddr) {
-        console.log(`[Stats] MiniPay path: registering ${username} on Celo...`);
-        const result = await celoRegisterPlayer(username);
-        if (result.success) {
-          console.log(`[Stats] ✅ Registered on Celo! TX: ${result.hash}`);
-        } else {
-          console.warn('[Stats] Celo registration failed, falling back to Redis only');
-        }
-      }
-      // ─── PATH B: Sequence → Base relay (AA wallet) ───
-      else if (CONTRACT_LIVE && isConnected && address) {
+      // ─── PATH A: MiniPay or Sequence → Backend Relay ───
+      if ((onMiniPay && miniPayAddr) || (CONTRACT_LIVE && isConnected && address)) {
         try {
-          console.log(`[Stats] Registering ${username} on Base via relay...`);
+          const chainType = onMiniPay ? 'celo' : 'base';
+          console.log(`[Stats] Registering ${username} on ${chainType.toUpperCase()} via relay...`);
           const relayRes = await fetch('/api/relay', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               action: 'register',
-              player: address,
+              player: walletAddress,
               username,
+              chainType,
             })
           });
           const relayData = await relayRes.json();
@@ -230,30 +222,22 @@ export function useBlockchainStats() {
 
       console.log(`[Sync] Sending stats for ${walletAddress} (${chainName}) | K:${kills} W:${wins} M:${gameMode} | Silent: ${silent}`);
 
-      // ─── PATH A: MiniPay → Direct Celo contract call (EOA) ───
-      if (onMiniPay && miniPayAddr) {
-        console.log(`[Sync] MiniPay path: recording match on Celo...`);
-        const result = await celoRecordMatch(kills, wins, gameMode);
-        if (result.success) {
-          console.log(`[Sync] ✅ Match recorded on Celo! TX: ${result.hash}`);
-        } else {
-          console.warn('[Sync] Celo sync failed, stats saved to Redis only');
-        }
-      }
-      // ─── PATH B: Sequence → Base relay (AA wallet) ───
-      else if (CONTRACT_LIVE && isConnected && address) {
+      // ─── PATH A: MiniPay or Sequence → Backend Relay ───
+      if ((onMiniPay && miniPayAddr) || (CONTRACT_LIVE && isConnected && address)) {
         try {
-          console.log(`[Sync] Relaying match result to Base contract...`);
+          const chainType = onMiniPay ? 'celo' : 'base';
+          console.log(`[Sync] Relaying match result to ${chainType.toUpperCase()} contract...`);
           const relayRes = await fetch('/api/relay', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               action: 'recordMatch',
-              player: address,
+              player: walletAddress,
               username: storage.getItem('lm_username') || undefined,
               kills,
               wins,
               mode: gameMode,
+              chainType,
             })
           });
           const relayData = await relayRes.json();

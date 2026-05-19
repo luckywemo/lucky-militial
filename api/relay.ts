@@ -1,8 +1,8 @@
 
 import { redis, K } from '../utils/redis';
-import { createWalletClient, createPublicClient, http, encodeFunctionData } from 'viem';
+import { createWalletClient, createPublicClient, http, encodeFunctionData, Chain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { base } from 'viem/chains';
+import { base, celo } from 'viem/chains';
 
 /**
  * Server-side relay for Base contract writes.
@@ -15,9 +15,11 @@ import { base } from 'viem/chains';
  * which fails for AA wallets. This relay uses the deployer key (contract owner).
  */
 
-const MILITIA_CONTRACT = (process.env.VITE_MILITIA_CONTRACT_ADDRESS || '0xa3e2975697a80485adfdef1d4a7322774d183f16') as `0x${string}`;
+const BASE_CONTRACT = (process.env.VITE_MILITIA_CONTRACT_ADDRESS || '0xa3e2975697a80485adfdef1d4a7322774d183f16') as `0x${string}`;
+const CELO_CONTRACT = (process.env.VITE_CELO_MILITIA_CONTRACT_ADDRESS || '0xe07297e597143c0A3f3177ce77bebc5aFBc3aDe0') as `0x${string}`;
 const EVM_PRIVATE_KEY = process.env.EVM_PRIVATE_KEY;
 const BASE_RPC = process.env.VITE_BASE_MAINNET_RPC || 'https://mainnet.base.org';
+const CELO_RPC = process.env.VITE_CELO_RPC || 'https://forno.celo.org';
 
 // ABI for the two write functions
 const MILITIA_ABI = [
@@ -64,7 +66,12 @@ export default async function handler(request: Request) {
 
   try {
     const body = await request.json();
-    const { action, player, username, kills, wins, mode } = body;
+    const { action, player, username, kills, wins, mode, chainType } = body;
+
+    const isCelo = chainType === 'celo';
+    const targetChain: Chain = isCelo ? celo : base;
+    const targetRpc = isCelo ? CELO_RPC : BASE_RPC;
+    const targetContract = isCelo ? CELO_CONTRACT : BASE_CONTRACT;
 
     if (!action || !player) {
       return new Response(JSON.stringify({ error: 'Missing action or player' }), {
@@ -77,14 +84,14 @@ export default async function handler(request: Request) {
     const account = privateKeyToAccount(`0x${EVM_PRIVATE_KEY.replace('0x', '')}` as `0x${string}`);
     
     const publicClient = createPublicClient({
-      chain: base,
-      transport: http(BASE_RPC),
+      chain: targetChain,
+      transport: http(targetRpc),
     });
 
     const walletClient = createWalletClient({
       account,
-      chain: base,
-      transport: http(BASE_RPC),
+      chain: targetChain,
+      transport: http(targetRpc),
     });
 
     let hash: string;
@@ -100,7 +107,7 @@ export default async function handler(request: Request) {
       try {
         // Simulate first to catch reverts (e.g., ALREADY_REGISTERED)
         await publicClient.simulateContract({
-          address: MILITIA_CONTRACT,
+          address: targetContract,
           abi: MILITIA_ABI,
           functionName: 'registerPlayer',
           args: [player as `0x${string}`, username],
@@ -109,12 +116,12 @@ export default async function handler(request: Request) {
 
         // Send the real transaction
         hash = await walletClient.writeContract({
-          address: MILITIA_CONTRACT,
+          address: targetContract,
           abi: MILITIA_ABI,
           functionName: 'registerPlayer',
           args: [player as `0x${string}`, username],
           gas: 200000n,
-          chain: base, // Explicitly provide chain to satisfy TS
+          chain: targetChain, // Explicitly provide chain to satisfy TS
         });
 
         console.log(`[Relay] ✅ registerPlayer TX sent! Hash: ${hash}`);
@@ -141,7 +148,7 @@ export default async function handler(request: Request) {
       try {
         // Simulate first
         await publicClient.simulateContract({
-          address: MILITIA_CONTRACT,
+          address: targetContract,
           abi: MILITIA_ABI,
           functionName: 'recordMatchResult',
           args: [player as `0x${string}`, BigInt(k), BigInt(w), m],
@@ -150,12 +157,12 @@ export default async function handler(request: Request) {
 
         // Send the real transaction
         hash = await walletClient.writeContract({
-          address: MILITIA_CONTRACT,
+          address: targetContract,
           abi: MILITIA_ABI,
           functionName: 'recordMatchResult',
           args: [player as `0x${string}`, BigInt(k), BigInt(w), m],
           gas: 250000n,
-          chain: base,
+          chain: targetChain,
         });
 
         console.log(`[Relay] ✅ recordMatchResult TX sent! Hash: ${hash} | K:${k} W:${w} M:${m}`);
@@ -168,12 +175,12 @@ export default async function handler(request: Request) {
           const regUsername = username || `OP_${player.slice(0, 6)}`;
           
           const regHash = await walletClient.writeContract({
-            address: MILITIA_CONTRACT,
+            address: targetContract,
             abi: MILITIA_ABI,
             functionName: 'registerPlayer',
             args: [player as `0x${string}`, regUsername],
             gas: 200000n,
-            chain: base,
+            chain: targetChain,
           });
           console.log(`[Relay] Auto-registered: ${regHash}`);
 
@@ -182,12 +189,12 @@ export default async function handler(request: Request) {
 
           // Now record the match
           hash = await walletClient.writeContract({
-            address: MILITIA_CONTRACT,
+            address: targetContract,
             abi: MILITIA_ABI,
             functionName: 'recordMatchResult',
             args: [player as `0x${string}`, BigInt(k), BigInt(w), m],
             gas: 250000n,
-            chain: base,
+            chain: targetChain,
           });
           console.log(`[Relay] ✅ recordMatchResult TX sent after auto-register! Hash: ${hash}`);
         } else {
@@ -219,7 +226,7 @@ export default async function handler(request: Request) {
     return new Response(JSON.stringify({ 
       success: true, 
       hash,
-      explorer: `https://basescan.org/tx/${hash}`,
+      explorer: isCelo ? `https://celoscan.io/tx/${hash}` : `https://basescan.org/tx/${hash}`,
     }), {
       headers: { 'Content-Type': 'application/json' }
     });
